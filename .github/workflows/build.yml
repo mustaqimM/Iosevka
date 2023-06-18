@@ -5,9 +5,11 @@ name: Build font
 
 on:
   push:
-    branches: [ "build" ]
-  pull_request:
-    branches: [ "master" ]
+    tags:
+      - '*'
+#     branches: [ "build" ]
+#   pull_request:
+#     branches: [ "master" ]
 
 jobs:
   build:
