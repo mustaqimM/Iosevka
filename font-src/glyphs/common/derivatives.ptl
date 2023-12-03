@@ -1,24 +1,24 @@
 $$include '../../meta/macros.ptl'
 
 import [mix linreg clamp fallback] from"../../support/utils.mjs"
-import [Cv AnyCv AnyDerivingCv Dotless SvInheritableRelations CvDecompose PseudoCvDecompose getGrMesh] from"../../support/gr.mjs"
+import [Cv AnyCv AnyDerivingCv Dotless SvInheritableRelations PseudoCvDecompose getGrMesh] from"../../support/gr.mjs"
 
 extern Map
 
 glyph-module
 
 glyph-block Common-Derivatives : begin
-	glyph-block-export ApplyCv
 	define [ApplyCv g shapeFrom follow para] : begin
-		foreach { kPrime prime } para.variants.primes : foreach h [prime.variants.values] : begin
-			local suffix : h.resolveFor para follow
+		foreach { kPrime prime } para.variants.primes : foreach pv [prime.variants.values] : begin
+			local suffix : pv.resolveFor para follow
 			if suffix : begin
 				local dstName : shapeFrom + '.' + suffix
-				local dst : glyphStore.queryByName dstName
-				if dst : g.dependsOn dst
-				if (para.enableCvSs && h.tag && h.rank) : begin
-					[Cv h.tag h.rank h.groupRank h.description].set g dstName
-					if h.nonDeriving : [Cv h.tag h.rank].setPreventDeriving g
+				local dstGlyph : query-glyph dstName
+				if dstGlyph : g.dependsOn dstGlyph
+
+				if (para.enableCvSs && pv.tag && pv.rank) : begin
+					pv.set g dstName
+					if pv.nonDeriving : pv.setPreventDeriving g
 
 	glyph-block-export select-variant
 	define [select-variant] : with-params [name unicode [shapeFrom name] [follow name] [reduction null]] : begin
@@ -30,11 +30,18 @@ glyph-block Common-Derivatives : begin
 			throw : new Error "Variant for \(name) (selector: \(shapeFrom)) is not assigned."
 
 		create-glyph name unicode : glyph-proc
-			include [refer-glyph (shapeFrom + '.' + variant)] AS_BASE ALSO_METRICS
+			local fromGlyphName : shapeFrom + '.' + variant
+			local fromGlyph : query-glyph fromGlyphName
+			if [not fromGlyph] : throw : new Error "Cannot find glyph '\(fromGlyphName)'"
+
+			include fromGlyph AS_BASE ALSO_METRICS
+			currentGlyph.dependsOn fromGlyph
+			currentGlyph.cloneRankFromGlyph fromGlyph
+
 			ApplyCv currentGlyph shapeFrom follow para
-			currentGlyph.cloneRankFromGlyph [query-glyph (shapeFrom + '.' + variant)]
+
 			foreach gr [items-of SvInheritableRelations] : begin
-				local v : gr.get [query-glyph (shapeFrom + '.' + variant)]
+				local v : gr.get fromGlyph
 				if v : gr.set this v
 
 	glyph-block-export orthographic-italic
@@ -48,19 +55,15 @@ glyph-block Common-Derivatives : begin
 		alias name unicode (name + '.upright')
 
 	glyph-block-export query-glyph
-	define [query-glyph id] : return : glyphStore.queryByName id
+	define [query-glyph id] : begin
+		if [not id] : return nothing
+		return : glyphStore.queryByName id
 
 	glyph-block-export refer-glyph
 	define [refer-glyph id] : lambda [copyAnchors copyWidth] : begin
 		local goal : query-glyph id
 		if [not goal] : throw : new Error "Cannot find glyph '\(id)'"
 		this.includeGlyph goal copyAnchors copyWidth
-
-	glyph-block-export add-glyph-dependency
-	define [add-glyph-dependency id] : lambda [copyAnchors copyWidth] : begin
-		local goal : query-glyph id
-		if [not goal] : throw : new Error "Cannot find glyph '\(id)'"
-		this.dependsOn goal
 
 	glyph-block-export DeriveMeshT
 	define [DeriveMeshT gnSources Query Fn FnLink] : begin
@@ -145,8 +148,8 @@ glyph-block Common-Derivatives : begin
 				include this.gizmo
 
 	glyph-block-export link-reduced-variant
-	define [link-reduced-variant] : with-params [dstGid srcGid gr follow] : begin
-		if [not : query-glyph dstGid] : select-variant dstGid (shapeFrom -- srcGid) (follow -- [fallback follow dstGid])
+	define [link-reduced-variant] : with-params [dstGid srcGid gr follow shapeFrom] : begin
+		if [not : query-glyph dstGid] : select-variant dstGid (shapeFrom -- [fallback shapeFrom srcGid]) (follow -- [fallback follow dstGid])
 		if (gr && [query-glyph srcGid]) : gr.set [query-glyph srcGid] dstGid
 
 	glyph-block-export alias-reduced-variant
@@ -214,66 +217,3 @@ glyph-block Common-Derivatives : begin
 					set rid : rid + 1
 				: else : include part asBase alsoMetrics
 
-glyph-block Recursive-Build : begin
-	define [Fork gs ps] : begin
-		local glyphs {}
-		foreach [glyphid : items-of gs] : begin
-			local g : glyphStore.queryByName glyphid
-			if g : glyphs.push g
-
-		local gs : buildGlyphs ps [$execState$.dependencyManager.traverseDependencies glyphs]
-		return gs.glyphStore
-
-	define [MiniatureParaT] : with-params [pp crowd scale [sbscale (Width / UPM)] [mono false] [mono2 false] [forceUpright false]] : begin
-		local forkedPara : Object.assign {.} pp
-		forkedPara.stroke = [AdviceStroke crowd : Math.pow [clamp 0 1 (HalfUPM / Width)] 0.5] / scale
-		forkedPara.dotSize = pp.dotSize * forkedPara.stroke / pp.stroke
-		forkedPara.periodSize = pp.periodSize * forkedPara.stroke / pp.stroke
-		forkedPara.sb = SB * sbscale
-		if forceUpright : begin
-			forkedPara.slopeAngle  = 0
-		if mono : begin
-			forkedPara.diversityM  = 1
-		if mono2 : begin
-			forkedPara.diversityF  = 1
-			forkedPara.diversityI  = 1
-			forkedPara.diversityII = 1
-
-		return forkedPara
-
-	define [Miniature glyphs] : begin
-		return : Fork glyphs : MiniatureParaT.apply null { para :: [{}.slice.call arguments 1] }
-
-	define [Thinner] : with-params [glyphs p fMono crowd crowdAdjScale] : begin
-		local forkedPara : Object.assign {.} para
-
-		if (crowd && crowdAdjScale) : begin
-			forkedPara.stroke = [AdviceStroke crowd] / crowdAdjScale
-			forkedPara.dotSize = para.dotSize * forkedPara.stroke / para.stroke
-			forkedPara.periodSize = para.periodSize * forkedPara.stroke / para.stroke
-
-		forkedPara.unitWidthScalar = para.unitWidthScalar * p
-		forkedPara.width = Width * p
-		forkedPara.accentWidth = AccentWidth * p
-		forkedPara.jut = Jut * p
-		forkedPara.longjut = LongJut * p
-		forkedPara.diversityM = 1
-		if fMono : begin
-			forkedPara.diversityF  = 1
-			forkedPara.diversityI  = 1
-			forkedPara.diversityII = 1
-		#forkedPara.hookx = HookX * p
-		return : Fork glyphs forkedPara
-
-	define [Widen glyphs p psb] : begin
-		local forkedPara : Object.assign {.} para
-		forkedPara.unitWidthScalar = para.unitWidthScalar * p
-		forkedPara.width = Width * p
-		forkedPara.sb = SB * [fallback psb p]
-		forkedPara.accentWidth = AccentWidth * p
-		forkedPara.jut = Jut * p
-		forkedPara.longjut = LongJut * p
-		forkedPara.hookx = HookX * p
-		return : Fork glyphs forkedPara
-
-	glyph-block-export Fork Miniature MiniatureParaT Thinner Widen

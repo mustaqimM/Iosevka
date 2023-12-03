@@ -31,10 +31,11 @@ const DIST_SUPER_TTC = "dist/.super-ttc";
 const ARCHIVE_DIR = "release-archives";
 
 const PATEL_C = ["node", "node_modules/patel/bin/patel-c"];
-const TTCIZE = ["node", "node_modules/otb-ttc-bundle/bin/otb-ttc-bundle"];
+const MAKE_TTC = ["node", "node_modules/otb-ttc-bundle/bin/otb-ttc-bundle"];
 const SEVEN_ZIP = process.env.SEVEN_ZIP_PATH || "7z";
+const TTFAUTOHINT = process.env.TTFAUTOHINT_PATH || "ttfautohint";
 
-const defaultWebFontFormats = ["ttf", "woff2"];
+const defaultWebFontFormats = ["woff2", "ttf"];
 const webfontFormatsFast = ["ttf"];
 const webfontFormatsPages = ["woff2"];
 
@@ -63,7 +64,7 @@ const Version = computed(`env::version`, async target => {
 
 const CheckTtfAutoHintExists = oracle(`oracle:check-ttfautohint-exists`, async target => {
 	try {
-		return await which("ttfautohint");
+		return await which(TTFAUTOHINT);
 	} catch (e) {
 		fail("External dependency <ttfautohint>, needed for building hinted font, does not exist.");
 	}
@@ -129,13 +130,25 @@ const BuildPlans = computed("metadata:build-plans", async target => {
 	const [rp] = await target.need(RawPlans);
 	const rawBuildPlans = rp.buildPlans;
 
+	// Initialize build plans
 	const returnBuildPlans = {};
-	const fileNameToBpMap = {};
 	for (const prefix in rawBuildPlans) {
 		const bp = { ...rawBuildPlans[prefix] };
-		validateAndShimBuildPlans(prefix, bp, rp.weights, rp.slopes, rp.widths);
+		if (!bp.family) fail(`Build plan for ${prefix} does not have a family name. Exit.`);
 		bp.webfontFormats = bp["webfont-formats"] || defaultWebFontFormats;
 		bp.targets = [];
+		returnBuildPlans[prefix] = bp;
+	}
+
+	// Resolve WWS, including inheritance and default config
+	for (const prefix in rawBuildPlans) {
+		resolveWws(prefix, returnBuildPlans, rp);
+	}
+
+	// Create file name to BP mapping
+	const fileNameToBpMap = {};
+	for (const prefix in rawBuildPlans) {
+		const bp = returnBuildPlans[prefix];
 		const weights = bp.weights,
 			slopes = bp.slopes,
 			widths = bp.widths;
@@ -156,32 +169,37 @@ const BuildPlans = computed("metadata:build-plans", async target => {
 
 function linkSpacingDerivableBuildPlans(bps) {
 	for (const pfxTo in bps) {
-		const planTo = bps[pfxTo];
-		const planToVal = rectifyPlanForSpacingDerivation(planTo);
-		if (!isLinkDeriveToSpacing(planTo.spacing)) continue;
+		const bpTo = bps[pfxTo];
+		if (blockSpacingDerivation(bpTo)) continue;
+		if (!isDeriveToSpacing(bpTo.spacing)) continue;
 		for (const pfxFrom in bps) {
-			const planFrom = bps[pfxFrom];
-			if (!isLinkDeriveFromSpacing(planFrom.spacing)) continue;
-			const planFromVal = rectifyPlanForSpacingDerivation(planFrom);
-			if (!deepEqual(planToVal, planFromVal)) continue;
-			planTo.spacingDeriveFrom = pfxFrom;
+			const bpFrom = bps[pfxFrom];
+			if (!isDeriveFromSpacing(bpFrom.spacing)) continue;
+			if (!spacingDeriveCompatible(pfxTo, bpTo, pfxFrom, bpFrom)) continue;
+			bpTo.spacingDeriveFrom = pfxFrom;
 		}
 	}
 }
-
-function isLinkDeriveToSpacing(spacing) {
+function blockSpacingDerivation(bp) {
+	return !!bp["compatibility-ligatures"];
+}
+function isDeriveToSpacing(spacing) {
 	return spacing === "term" || spacing === "fontconfig-mono" || spacing === "fixed";
 }
-function isLinkDeriveFromSpacing(spacing) {
+function isDeriveFromSpacing(spacing) {
 	return !spacing || spacing === "normal";
 }
-
-function rectifyPlanForSpacingDerivation(p) {
+function spacingDeriveCompatible(pfxTo, bpTo, pfxFrom, bpFrom) {
+	// If the two build plans are the same, then they are compatible.
+	return deepEqual(rectifyPlanForSpacingDerive(bpTo), rectifyPlanForSpacingDerive(bpFrom));
+}
+function rectifyPlanForSpacingDerive(p) {
 	return {
 		...p,
 		family: "#Validation",
 		desc: "#Validation",
 		spacing: "#Validation",
+		buildCharMap: false,
 		snapshotFamily: null,
 		snapshotFeature: null,
 		targets: null
@@ -212,6 +230,7 @@ const CompositesFromBuildPlan = computed(`metadata:composites-from-build-plan`, 
 	return data;
 });
 
+// eslint-disable-next-line complexity
 const FontInfoOf = computed.group("metadata:font-info-of", async (target, fileName) => {
 	const [{ fileNameToBpMap, buildPlans }] = await target.need(BuildPlans);
 	const [version] = await target.need(Version);
@@ -239,10 +258,12 @@ const FontInfoOf = computed.group("metadata:font-info-of", async (target, fileNa
 		name: fileName,
 		variants: bp.variants || null,
 		derivingVariants: bp.derivingVariants,
+		buildCharMap: bp.buildCharMap,
 		featureControl: {
 			noCvSs: bp["no-cv-ss"] || false,
 			noLigation: bp["no-ligation"] || false,
-			exportGlyphNames: bp["export-glyph-names"] || false
+			exportGlyphNames: bp["export-glyph-names"] || false,
+			buildTexture: bp["build-texture-feature"] || false
 		},
 		// Ligations
 		ligations: bp.ligations || null,
@@ -375,22 +396,25 @@ const DistUnhintedTTF = file.make(
 
 		const charMapDir = `${BUILD}/ttf/${gr}`;
 		const charMapPath = `${charMapDir}/${fn}.charmap.mpz`;
-		const noGcTtfPath = `${charMapDir}/${fn}.no-gc.ttf`;
+		const ttfaControlsPath = `${charMapDir}/${fn}.ttfa.txt`;
 
 		if (fi.spacingDerive) {
 			// The font is a spacing variant, and is derivable form an existing
 			// normally-spaced variant.
+
+			const noGcTtfPath = `${charMapDir}/${fn}.no-gc.unhinted.ttf`;
+
 			const spD = fi.spacingDerive;
 			const [deriveFrom] = await target.need(
 				DistUnhintedTTF(spD.prefix, spD.fileName),
 				de(charMapDir)
 			);
 
-			echo.action(echo.hl.command(`Create TTF`), out.full);
+			echo.action(echo.hl.command(`Hint TTF`), out.full);
 			await silently.node(`font-src/derive-spacing.mjs`, {
 				i: deriveFrom.full,
-				oNoGc: noGcTtfPath,
 				o: out.full,
+				oNoGc: noGcTtfPath,
 				...fi
 			});
 		} else {
@@ -410,7 +434,8 @@ const DistUnhintedTTF = file.make(
 			echo.action(echo.hl.command(`Create TTF`), out.full);
 			const { cacheUpdated } = await silently.node("font-src/index.mjs", {
 				o: out.full,
-				oCharMap: charMapPath,
+				...(fi.buildCharMap ? { oCharMap: charMapPath } : {}),
+				oTtfaControls: ttfaControlsPath,
 				cacheFreshAgeKey: ageKey,
 				iCache: cachePath,
 				oCache: cacheDiffPath,
@@ -433,10 +458,63 @@ const DistUnhintedTTF = file.make(
 	}
 );
 
-const BuildNoGcTtfImpl = file.make(
-	(gr, f) => `${BUILD}/ttf/${gr}/${f}.no-gc.ttf`,
+const BuildCM = file.make(
+	(gr, f) => `${BUILD}/ttf/${gr}/${f}.charmap.mpz`,
 	async (target, output, gr, f) => {
 		await target.need(DistUnhintedTTF(gr, f));
+	}
+);
+
+const BuildTtfaControls = file.make(
+	(gr, f) => `${BUILD}/ttf/${gr}/${f}.ttfa.txt`,
+	async (target, output, gr, f) => {
+		await target.need(DistUnhintedTTF(gr, f));
+	}
+);
+
+const DistHintedTTF = file.make(
+	(gr, fn) => `${DIST}/${gr}/ttf/${fn}.ttf`,
+	async (target, out, gr, fn) => {
+		const [fi, hint] = await target.need(
+			FontInfoOf(fn),
+			CheckTtfAutoHintExists,
+			de`${out.dir}`
+		);
+		if (fi.spacingDerive) {
+			// The font is a spacing variant, and is derivable form an existing
+			// normally-spaced variant.
+
+			const spD = fi.spacingDerive;
+			const charMapDir = `${BUILD}/ttf/${gr}`;
+			const noGcTtfPath = `${charMapDir}/${fn}.no-gc.hinted.ttf`;
+
+			const [deriveFrom] = await target.need(
+				DistHintedTTF(spD.prefix, spD.fileName),
+				de(charMapDir)
+			);
+
+			echo.action(echo.hl.command(`Create TTF`), out.full);
+			await silently.node(`font-src/derive-spacing.mjs`, {
+				i: deriveFrom.full,
+				oNoGc: noGcTtfPath,
+				o: out.full,
+				...fi
+			});
+		} else {
+			const [from, ttfaControls] = await target.need(
+				DistUnhintedTTF(gr, fn),
+				BuildTtfaControls(gr, fn)
+			);
+			echo.action(echo.hl.command(`Hint TTF`), out.full, echo.hl.operator("<-"), from.full);
+			await silently.run(hint, fi.hintParams, "-m", ttfaControls.full, from.full, out.full);
+		}
+	}
+);
+
+const BuildNoGcTtfImpl = file.make(
+	(gr, f) => `${BUILD}/ttf/${gr}/${f}.no-gc.hinted.ttf`,
+	async (target, output, gr, f) => {
+		await target.need(DistHintedTTF(gr, f));
 	}
 );
 
@@ -448,26 +526,9 @@ const BuildNoGcTtf = task.make(
 			const [noGc] = await target.need(BuildNoGcTtfImpl(gr, fn));
 			return noGc;
 		} else {
-			const [distUnhinted] = await target.need(DistUnhintedTTF(gr, fn));
+			const [distUnhinted] = await target.need(DistHintedTTF(gr, fn));
 			return distUnhinted;
 		}
-	}
-);
-
-const BuildCM = file.make(
-	(gr, f) => `${BUILD}/ttf/${gr}/${f}.charmap.mpz`,
-	async (target, output, gr, f) => {
-		await target.need(DistUnhintedTTF(gr, f));
-	}
-);
-
-const DistHintedTTF = file.make(
-	(gr, fn) => `${DIST}/${gr}/ttf/${fn}.ttf`,
-	async (target, out, gr, fn) => {
-		const [fi, hint] = await target.need(FontInfoOf(fn), CheckTtfAutoHintExists);
-		const [from] = await target.need(DistUnhintedTTF(gr, fn), de`${out.dir}`);
-		echo.action(echo.hl.command(`Hint TTF`), out.full, echo.hl.operator("<-"), from.full);
-		await silently.run(hint, fi.hintParams, from.full, out.full);
 	}
 );
 
@@ -702,18 +763,15 @@ const GlyfTtc = file.make(
 async function buildCompositeTtc(out, inputs) {
 	const inputPaths = inputs.map(f => f.full);
 	echo.action(echo.hl.command(`Create TTC`), out.full, echo.hl.operator("<-"), inputPaths);
-	await absolutelySilently.run(TTCIZE, ["-o", out.full], inputPaths);
+	await absolutelySilently.run(MAKE_TTC, ["-o", out.full], inputPaths);
 }
 
 async function buildGlyphSharingTtc(target, parts, out) {
 	await target.need(de`${out.dir}`);
 	const [ttfInputs] = await target.need(parts.map(part => BuildNoGcTtf(part.dir, part.file)));
-	const tmpTtc = `${out.dir}/${out.name}.unhinted.ttc`;
 	const ttfInputPaths = ttfInputs.map(p => p.full);
 	echo.action(echo.hl.command(`Create TTC`), out.full, echo.hl.operator("<-"), ttfInputPaths);
-	await silently.run(TTCIZE, "-u", ["-o", tmpTtc], ttfInputPaths);
-	await silently.run("ttfautohint", tmpTtc, out.full);
-	await rm(tmpTtc);
+	await silently.run(MAKE_TTC, "-u", ["-o", out.full], ttfInputPaths);
 }
 
 ///////////////////////////////////////////////////////////
@@ -814,6 +872,9 @@ const PagesDataExport = task(`pages:data-export`, async t => {
 		BuildCM("iosevka", "iosevka-italic"),
 		BuildCM("iosevka", "iosevka-oblique")
 	);
+	await node(`utility/export-tokenized-sample-code.mjs`, {
+		output: Path.resolve(pagesDir, "shared/tokenized-sample-code/alphabet.txt.json")
+	});
 	await node(`utility/export-data/index.mjs`, {
 		charMapPath: cm.full,
 		charMapItalicPath: cmi.full,
@@ -861,6 +922,7 @@ const AmendReadme = task("amend-readme", async target => {
 		AmendReadmeFor("doc/character-variants.md"),
 		AmendReadmeFor("doc/custom-build.md"),
 		AmendReadmeFor("doc/language-specific-ligation-sets.md"),
+		AmendReadmeFor("doc/cv-influences.md"),
 		AmendLicenseYear
 	);
 });
@@ -905,11 +967,19 @@ const SampleImagesPre = task(`sample-images:pre`, async target => {
 		GroupTtfsImpl(`iosevka-aile`, false),
 		GroupTtfsImpl(`iosevka-etoile`, false)
 	);
+	const [cm, cmi, cmo] = await target.need(
+		BuildCM("iosevka", "iosevka-regular"),
+		BuildCM("iosevka", "iosevka-italic"),
+		BuildCM("iosevka", "iosevka-oblique")
+	);
 	return await node("utility/generate-samples/index.mjs", {
+		version,
 		outputDir: IMAGE_TASKS,
 		packageSnapshotTasks: await PackageSnapshotConfig(target),
 		fontGroups: fontGroups,
-		version
+		charMapPath: cm.full,
+		charMapItalicPath: cmi.full,
+		charMapObliquePath: cmo.full
 	});
 });
 const PackageSnapshotConfig = async target => {
@@ -1123,21 +1193,48 @@ const Parameters = task(`meta:parameters`, async target => {
 ///////////////////////////////////////////////////////////
 
 // Build plan validation
-function validateAndShimBuildPlans(prefix, bp, dWeights, dSlopes, dWidths) {
-	if (!bp.family) {
-		fail(`Build plan for ${prefix} does not have a family name. Exit.`);
-	}
+
+function resolveWws(bpName, buildPlans, defaultConfig) {
+	const bp = buildPlans[bpName];
+	if (!bp) fail(`Build plan ${bpName} not found.`);
+
 	if (!bp.slopes && bp.slants) {
-		echo.warn(
-			`Build plan for ${prefix} uses legacy "slants" to define slopes. ` +
+		fail(
+			`Build plan for ${bpName} uses legacy "slants" to define slopes. ` +
 				`Use "slopes" instead.`
 		);
 	}
 
-	bp.weights = shimBpAspect("weights", bp.weights, dWeights);
-	bp.slopes = shimBpAspect("slopes", bp.slopes || bp.slants, dSlopes);
-	bp.widths = shimBpAspect("widths", bp.widths, dWidths);
+	bp.weights = resolveWwsAspect("weights", bpName, buildPlans, defaultConfig, []);
+	bp.widths = resolveWwsAspect("widths", bpName, buildPlans, defaultConfig, []);
+	bp.slopes = resolveWwsAspect("slopes", bpName, buildPlans, defaultConfig, []);
 }
+
+function resolveWwsAspect(aspectName, bpName, buildPlans, defaultConfig, deps) {
+	const bp = buildPlans[bpName];
+	if (!bp) fail(`Build plan ${bpName} not found.`);
+
+	if (bp[aspectName]) {
+		return shimBpAspect(aspectName, bp[aspectName], defaultConfig[aspectName]);
+	} else if (bp[`${aspectName}-inherits`]) {
+		const inheritedPlanName = bp[`${aspectName}-inherits`];
+		const inheritedPlan = buildPlans[inheritedPlanName];
+		if (deps.includes(inheritedPlan))
+			fail(`Circular dependency detected when resolving ${aspectName} of ${bp.family}.`);
+
+		const updatedDes = [...deps, bpName];
+		return resolveWwsAspect(
+			aspectName,
+			inheritedPlanName,
+			buildPlans,
+			defaultConfig,
+			updatedDes
+		);
+	} else {
+		return defaultConfig[aspectName];
+	}
+}
+
 function shimBpAspect(aspectName, aspect, defaultAspect) {
 	if (!aspect) return defaultAspect;
 	const result = {};

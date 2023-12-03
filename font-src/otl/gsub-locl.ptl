@@ -1,19 +1,26 @@
-import [CopyLanguage AddFeature AddLookup BeginLookupBlock EndLookupBlock] from"./table-util.mjs"
+$$include '../meta/macros.ptl'
 
-export : define [buildLOCL sink para glyphStore] : begin
-	local rec : BeginLookupBlock sink
+import [CvDecompose] from"../support/gr.mjs"
 
-	define cyrlSRB  : CopyLanguage sink 'cyrl_SRB ' 'cyrl_DFLT'
-	define cyrlMKD  : CopyLanguage sink 'cyrl_MKD ' 'cyrl_DFLT'
-	define cyrlBGR  : CopyLanguage sink 'cyrl_BGR ' 'cyrl_DFLT'
+extern Set
+
+export : define [buildLOCL gsub para glyphStore] : begin
+	local rec : gsub.beginBlock
+
+	define { chain-rule } : gsub.ChainRuleBuilder
+
+	define cyrlSRB  : gsub.copyLanguage 'cyrl_SRB ' 'cyrl_DFLT'
+	define cyrlMKD  : gsub.copyLanguage 'cyrl_MKD ' 'cyrl_DFLT'
+	define cyrlBGR  : gsub.copyLanguage 'cyrl_BGR ' 'cyrl_DFLT'
+	define latnVIT  : gsub.copyLanguage 'latn_VIT ' 'latn_DFLT'
 
 	# SRB
-	define loclSRB : AddFeature sink 'locl'
-	cyrlSRB.features.unshift loclSRB.name
-	cyrlMKD.features.unshift loclSRB.name
-	loclSRB.lookups.push : AddLookup sink : object
-		type 'gsub_single'
-		substitutions : if para.isItalic
+	define loclSRB : gsub.createFeature 'locl'
+	cyrlSRB.addFeature loclSRB
+	cyrlMKD.addFeature loclSRB
+	loclSRB.addLookup : gsub.createLookup
+		.type 'gsub_single'
+		.substitutions : if para.isItalic
 			object
 				'cyrl/be'  : glyphStore.ensureExists 'cyrl/be.SRB'
 				'cyrl/ghe' : glyphStore.ensureExists 'cyrl/ghe.SRB'
@@ -25,11 +32,10 @@ export : define [buildLOCL sink para glyphStore] : begin
 				'cyrl/be'  : glyphStore.ensureExists 'cyrl/be.SRB'
 
 	# BGR
-	define loclBGR : AddFeature sink 'locl'
-	cyrlBGR.features.unshift loclBGR.name
-	loclBGR.lookups.push : AddLookup sink : object
-		type 'gsub_single'
-		substitutions : object
+	define loclBGR : cyrlBGR.addFeature : gsub.createFeature 'locl'
+	loclBGR.addLookup : gsub.createLookup
+		.type 'gsub_single'
+		.substitutions : object
 			'cyrl/ve'      : glyphStore.ensureExists 'cyrl/ve.BGR'
 			'cyrl/ghe'     : glyphStore.ensureExists 'cyrl/ghe.italic'
 			'cyrl/De'      : glyphStore.ensureExists 'cyrl/De.BGR'
@@ -45,6 +51,8 @@ export : define [buildLOCL sink para glyphStore] : begin
 			'cyrl/en'      : glyphStore.ensureExists 'cyrl/en.BGR'
 			'cyrl/pe'      : glyphStore.ensureExists 'cyrl/pe.BGR'
 			'cyrl/te'      : glyphStore.ensureExists 'cyrl/te.BGR'
+			'cyrl/Ef'      : glyphStore.ensureExists 'cyrl/Ef.BGR'
+			'cyrl/ef'      : glyphStore.ensureExists 'cyrl/ef.BGR'
 			'cyrl/che'     : glyphStore.ensureExists 'cyrl/che.BGR'
 			'cyrl/sha'     : glyphStore.ensureExists 'cyrl/sha.BGR'
 			'cyrl/shcha'   : glyphStore.ensureExists 'cyrl/shcha.BGR'
@@ -53,4 +61,39 @@ export : define [buildLOCL sink para glyphStore] : begin
 			'cyrl/yer'     : glyphStore.ensureExists 'cyrl/yer.BGR'
 			'cyrl/yeri'    : glyphStore.ensureExists 'cyrl/yeri.BGR'
 
-	EndLookupBlock.Front rec sink
+	# VIT
+	define loclVIT : latnVIT.addFeature : gsub.createFeature 'locl'
+
+	define [sx s] : lambda [t] : t.map : lambda [x] "\(x)/\(s)"
+
+	do "Decompose Vietnamese glyphs"
+
+		local decompositionSubstitutions {.}
+		loclVIT.addLookup : gsub.createLookup
+			.type 'gsub_multiple'
+			.substitutions decompositionSubstitutions
+
+		local viCircumflex 'ẦẤẨỀẾỂỒỐỔầấẩềếểồốổ'
+		local viBreve      'ẮẰẲằắẳ'
+		local viShiftableMarks { 'acuteAbove' 'graveAbove' 'hookAbove' }
+
+		foreach ch (viCircumflex + viBreve) : begin
+			local u : ch.codePointAt 0
+			local gn : glyphStore.queryNameByUnicode u
+			local g : glyphStore.queryByNameEnsured gn
+			local decomp : CvDecompose.get g
+			set decompositionSubstitutions.(gn) decomp
+
+		loclVIT.addLookup : gsub.createLookup
+			.type 'gsub_chaining'
+			.rules : list
+				chain-rule
+					{'A' 'a' 'E' 'e' 'O' 'o'} ~> nothing
+					{'circumflexAbove'}       ~> nothing
+					viShiftableMarks          ~> [sx 'viSide']
+				chain-rule
+					{'A' 'a'}                 ~> nothing
+					{'breveAbove'}            ~> nothing
+					viShiftableMarks          ~> [sx 'viCenter']
+
+	gsub.endBlockAtFront rec

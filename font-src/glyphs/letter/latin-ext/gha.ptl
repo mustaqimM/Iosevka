@@ -1,7 +1,7 @@
 $$include '../../../meta/macros.ptl'
 
 import [mix linreg clamp fallback] from"../../../support/utils.mjs"
-import [Dotless CvDecompose] from"../../../support/gr.mjs"
+
 
 glyph-module
 
@@ -11,7 +11,7 @@ glyph-block Letter-Latin-Gha : begin
 	glyph-block-import Letter-Shared-Shapes : SerifFrame
 
 	define [GhaShape df top] : glyph-proc
-		local abarRight : df.middle + df.mvs / 2 * HVContrast
+		local abarRight : df.middle + [HSwToV : 0.5 * df.mvs]
 		local ada : ArchDepthAOf [Math.max (df.mvs * 1.125) (SmallArchDepth * 0.6 * df.div)] (Width * df.div)
 		local adb : ArchDepthBOf [Math.max (df.mvs * 1.125) (SmallArchDepth * 0.6 * df.div)] (Width * df.div)
 		include : OShape top 0 df.leftSB abarRight df.mvs ada adb
@@ -21,20 +21,18 @@ glyph-block Letter-Latin-Gha : begin
 			flat df.middle (top - adb) [heading Rightward]
 			curl (df.middle + 1) (top - adb) [heading Rightward]
 			alsoThru 0.5 0.15
-			g4   (df.rightSB - O - df.mvs * HVContrast) top [widths 0 df.mvs]
+			g4   (df.rightSB - O - [HSwToV df.mvs]) top [widths 0 df.mvs]
 
 		if SLAB : begin
 			local sf : SerifFrame.fromDf df top Descender
 			include sf.rb.full
 
 	create-glyph 'Gha' 0x1A2 : glyph-proc
-		local df : DivFrame para.diversityM 3
-		set-width df.width
-		include : df.markSet.capital
+		local df : include : DivFrame para.diversityM 3
+		include : df.markSet.capDesc
 		include : GhaShape df CAP
 
 	create-glyph 'gha' 0x1A3 : glyph-proc
-		local df : DivFrame para.diversityM 3
-		set-width df.width
+		local df : include : DivFrame para.diversityM 3
 		include : df.markSet.p
 		include : GhaShape df XH

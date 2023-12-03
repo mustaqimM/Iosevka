@@ -1,7 +1,6 @@
 $$include '../../../meta/macros.ptl'
 
 import [mix linreg clamp fallback] from"../../../support/utils.mjs"
-import [Dotless CvDecompose] from"../../../support/gr.mjs"
 
 glyph-module
 
@@ -36,7 +35,7 @@ glyph-block Letter-Latin-Upper-AE-OE : begin
 			corner eleft top
 			corner eleft (top - sw)
 		include : intersection
-			WithTransform [Translate (-O) 0] : spiro-outline
+			with-transform [Translate (-O) 0] : spiro-outline
 				corner df.leftSB 0 [heading Upward]
 				curl   df.leftSB (top * 0.1) [heading Upward]
 				quadControls 0 0.3 6 unimportant
@@ -52,7 +51,7 @@ glyph-block Letter-Latin-Upper-AE-OE : begin
 		define pInktrap : 2 / 3
 		define clearance : 0 - OX
 		define vxStartL : df.leftSB * StraightSbShrink
-		define vxEndL : df.middle - 0.75 * sw * HVContrast
+		define vxEndL : df.middle - [HSwToV : 0.75 * sw]
 		define dgCor : DiagCor top (df.width / 2) 0 (sw * 2)
 		define midSW : dgCor * [Math.min [mix sw fine pInktrap] [AdviceStroke 3 df.div]]
 
@@ -73,19 +72,19 @@ glyph-block Letter-Latin-Upper-AE-OE : begin
 
 	define [AEAHalfSerifs df top slabKind] : glyph-proc
 		define sw : Math.min df.mvs : AdviceStroke2 3 3 top df.div
-		define eleft : df.middle - sw * 0.25 * HVContrast
+		define eleft : df.middle - [HSwToV : 0.25 * sw]
 		match slabKind
 			([Just SLAB-A-BASE] || [Just SLAB-A-TRI]) : begin
-				include : HSerif.mb (df.leftSB + sw / 2 * HVContrast) 0 Jut sw
+				include : HSerif.mb (df.leftSB + [HSwToV : 0.5 * sw]) 0 Jut sw
 		match slabKind
 			[Just SLAB-A-TRI] : begin
-				include : HSerif.lt df.middle top (MidJutSide + Stroke * HVContrast * 0.25)
+				include : HSerif.lt df.middle top (MidJutSide + [HSwToV : 0.25 * Stroke])
 			[Just SLAB-A-TOP] : begin
 				include : HSerif.lt df.middle top [mix MidJutSide LongJut 0.5]
 
 	define [AEAHalf df top straight slabKind] : glyph-proc
 		define sw : AESW df top
-		define eleft : df.middle - sw * 0.25 * HVContrast
+		define eleft : df.middle - [HSwToV : 0.25 * sw]
 		include : if straight
 			AEAHalfStraight df top eleft sw
 			AEAHalfCurly df top eleft sw
@@ -94,8 +93,8 @@ glyph-block Letter-Latin-Upper-AE-OE : begin
 	define [AEEHalf df top slabKind] : glyph-proc
 		define eBarPos DesignParameters.upperEBarPos
 		define sw : AESW df top
-		define eleft : df.middle - sw * 0.25 * HVContrast
-		define swVJut : Math.min sw ((df.rightSB - eleft - sw * HVContrast) * (4 / 5))
+		define eleft : df.middle - [HSwToV : 0.25 * sw]
+		define swVJut : Math.min sw ((df.rightSB - eleft - [HSwToV sw]) * (4 / 5))
 
 		# E half
 		include : VBar.l eleft 0 top sw
@@ -124,14 +123,12 @@ glyph-block Letter-Latin-Upper-AE-OE : begin
 
 	foreach { suffix { fStraightBar slabKind } } [Object.entries AConfig] : do
 		create-glyph "AE/AHalf.\(suffix)" : glyph-proc
-			define df : DivFrame para.diversityM 3
-			set-width df.width
+			define df : include : DivFrame para.diversityM 3
 			include : df.markSet.capital
 			set-base-anchor 'cvDecompose' 0 0
 			include : AEAHalf df CAP fStraightBar slabKind
 		create-glyph "smcpAE/AHalf.\(suffix)" : glyph-proc
-			define df : DivFrame para.diversityM 3
-			set-width df.width
+			define df : include : DivFrame para.diversityM 3
 			include : df.markSet.e
 			set-base-anchor 'cvDecompose' 0 0
 			include : AEAHalf df XH fStraightBar slabKind
@@ -153,25 +150,15 @@ glyph-block Letter-Latin-Upper-AE-OE : begin
 	select-variant 'smcpAE/AHalf' (follow -- 'A')
 	select-variant 'smcpAE/EHalf' (follow -- 'AE/EHalf')
 
-	create-glyph "AE" 0xC6 : glyph-proc
-		include [refer-glyph 'AE/AHalf'] AS_BASE ALSO_METRICS
-		include [refer-glyph 'AE/EHalf']
-		CvDecompose.set currentGlyph { 'AE/AHalf' 'AE/EHalf' }
-
-	create-glyph "smcpAE" 0x1D01 : glyph-proc
-		include [refer-glyph 'smcpAE/AHalf'] AS_BASE ALSO_METRICS
-		include [refer-glyph 'smcpAE/EHalf']
-		CvDecompose.set currentGlyph { 'smcpAE/AHalf' 'smcpAE/EHalf' }
-
+	derive-composites "AE" 0xC6 'AE/AHalf' 'AE/EHalf'
+	derive-composites "smcpAE" 0x1D01 'smcpAE/AHalf' 'smcpAE/EHalf'
 	alias 'cyrl/AE' 0x4D4 'AE'
-	if [query-glyph 'cyrl/AE'] : begin
-		CvDecompose.set [query-glyph 'cyrl/AE'] { 'AE/AHalf' 'AE/EHalf' }
 
 	define [OEShape top df slabKind] : glyph-proc
 		define eBarPos DesignParameters.upperEBarPos
 		define sw : Math.min df.mvs : AdviceStroke2 3 3 top df.div
 		define eleft : df.middle - sw * [if SLAB (1 / 3) (1 / 4)] * HVContrast
-		define swVJut : Math.min sw ((df.rightSB - eleft - sw * HVContrast) * (4 / 5))
+		define swVJut : Math.min sw ((df.rightSB - eleft - [HSwToV sw]) * (4 / 5))
 
 		# O half
 		include : dispiro
@@ -198,13 +185,11 @@ glyph-block Letter-Latin-Upper-AE-OE : begin
 
 	foreach { suffix { slabKind } } [Object.entries EConfig] : do
 		create-glyph "OE.\(suffix)" : glyph-proc
-			define df : DivFrame para.diversityM 3
-			set-width df.width
+			define df : include : DivFrame para.diversityM 3
 			include : df.markSet.capital
 			include : OEShape CAP df slabKind
 		create-glyph "smcpOE.\(suffix)" : glyph-proc
-			define df : DivFrame para.diversityM 3
-			set-width df.width
+			define df : include : DivFrame para.diversityM 3
 			include : df.markSet.e
 			include : OEShape XH df slabKind
 

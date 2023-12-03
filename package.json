@@ -1,35 +1,37 @@
 {
   "name": "iosevka",
-  "version": "24.1.3",
+  "version": "27.3.5",
   "main": "./font-src/index.js",
   "scripts": {
     "build": "verda -f verdafile.mjs",
-    "bump-ver": "node utility/update-package-json-version/index.mjs && npm install",
-    "clean": "verda -f verdafile.mjs clean"
+    "bump-ver": "node utility/update-package-json-version/index.mjs && npm install && node utility/generate-ttfa-ranges/index.mjs",
+    "clean": "verda -f verdafile.mjs clean",
+    "lint": "eslint . --ext .mjs"
   },
   "dependencies": {
     "@iarna/toml": "^2.2.5",
     "@msgpack/msgpack": "^2.8.0",
-    "ot-builder": "^1.6.4",
-    "otb-ttc-bundle": "^1.6.4",
-    "semver": "^7.5.0",
+    "deep-equal": "^2.2.3",
+    "harfbuzzjs": "^0.3.3",
+    "ot-builder": "^1.7.3",
+    "otb-ttc-bundle": "^1.7.3",
+    "semver": "^7.5.4",
     "spiro": "^3.0.0",
     "toposort": "^2.0.2",
-    "typo-geom": "^0.13.0",
-    "uuid": "^9.0.0",
-    "wawoff2": "^2.0.1",
-    "deep-equal": "^2.2.0"
+    "typo-geom": "^0.13.1",
+    "uuid": "^9.0.1",
+    "wawoff2": "^2.0.1"
   },
   "devDependencies": {
-    "@unicode/unicode-15.0.0": "^1.3.1",
-    "cldr": "^7.4.0",
-    "eslint": "^8.39.0",
-    "eslint-config-prettier": "^8.8.0",
-    "eslint-plugin-import": "^2.27.5",
+    "@unicode/unicode-15.0.0": "^1.5.2",
+    "cldr": "^7.5.0",
+    "eslint": "^8.53.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-import": "^2.29.0",
     "patel": "^0.39.0",
-    "prettier": "^2.8.7",
+    "prettier": "^3.0.3",
     "verda": "^1.11.0",
-    "which": "^3.0.0"
+    "which": "^4.0.0"
   },
   "engines": {
     "node": ">=16.0.0"

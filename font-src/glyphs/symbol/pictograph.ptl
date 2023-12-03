@@ -7,6 +7,8 @@ export : define [apply] : begin
 	run-glyph-module "./pictograph/atom.mjs"
 	run-glyph-module "./pictograph/bolt-symbol.mjs"
 	run-glyph-module "./pictograph/checking-marks.mjs"
+	run-glyph-module "./pictograph/clock.mjs"
+	run-glyph-module "./pictograph/cross.mjs"
 	run-glyph-module "./pictograph/faces.mjs"
 	run-glyph-module "./pictograph/flags.mjs"
 	run-glyph-module "./pictograph/heart.mjs"
@@ -18,3 +20,4 @@ export : define [apply] : begin
 	run-glyph-module "./pictograph/powerline-and-gui.mjs"
 	run-glyph-module "./pictograph/stick-figure.mjs"
 	run-glyph-module "./pictograph/suit.mjs"
+	run-glyph-module "./pictograph/telephone-recorder.mjs"

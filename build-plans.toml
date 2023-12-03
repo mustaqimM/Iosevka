@@ -7,6 +7,7 @@ optimizeWithTtx = false
 [buildPlans.iosevka]
 family = "Iosevka"
 desc = "Default"
+buildCharMap = true
 snapshotFamily = 'Iosevka'
 snapshotFeature = {"NWID" = 0}
 export-glyph-names = true
@@ -701,15 +702,21 @@ u = "toothed-serifless"
 w = "straight-flat-top-serifless"
 y = "straight-serifless"
 long-s = "flat-hook-serifless"
-eszet = "longs-s-lig"
+eszet = "longs-s-lig-serifless"
 lower-iota = "flat-tailed"
 lower-lambda = "straight-turn"
-cyrl-ef = "serifless"
+lower-tau = "flat-tailed"
 cyrl-capital-ka = "symmetric-connected-serifless"
 cyrl-ka = "symmetric-connected-serifless"
+cyrl-em = "flat-bottom-serifless"
 cyrl-capital-u = "straight-serifless"
+cyrl-u = "straight-serifless"
+cyrl-ef = "serifless"
+cyrl-yeri = "corner"
+cyrl-yery = "corner"
 at = "fourfold"
 percent = "rings-continuous-slash"
+micro-sign = "toothed-serifless"
 
 # Letterform control for U+1D670 ... U+1D6A3
 [buildPlans.iosevka-aile.derivingVariants.mathtt.design]
@@ -733,15 +740,21 @@ u = "toothed-serifless"
 w = "straight-flat-top-serifless"
 y = "straight-serifless"
 long-s = "flat-hook-serifless"
-eszet = "longs-s-lig"
-lower-iota = "flat-tailed"
+eszet = "longs-s-lig-serifless"
+lower-iota = "serifed-flat-tailed"
 lower-lambda = "straight-turn"
-cyrl-ef = "serifless"
+lower-tau = "flat-tailed"
 cyrl-capital-ka = "symmetric-connected-serifless"
 cyrl-ka = "symmetric-connected-serifless"
+cyrl-em = "flat-bottom-serifless"
 cyrl-capital-u = "straight-serifless"
+cyrl-u = "straight-serifless"
+cyrl-ef = "serifless"
+cyrl-yeri = "corner"
+cyrl-yery = "corner"
 at = "fourfold"
 percent = "rings-continuous-slash"
+micro-sign = "toothed-serifless"
 
 [buildPlans.iosevka-aile.widths.normal]
 shape = 600
@@ -760,15 +773,29 @@ snapshotFeature = {"NWID" = 0}
 export-glyph-names = true
 
 [buildPlans.iosevka-etoile.variants.design]
-at = 'fourfold'
-capital-w = 'straight-flat-top-serifed'
+capital-m = "flat-bottom-serifed"
+capital-w = "straight-flat-top-serifed"
 f = "flat-hook-serifed"
-j = 'flat-hook-serifed'
+i = "serifed"
+j = "flat-hook-serifed"
+l = "serifed"
 t = "flat-hook"
-w = 'straight-flat-top-serifed'
+w = "straight-flat-top-serifed"
+long-s = "flat-hook-bottom-serifed"
+eszet = "longs-s-lig-bottom-serifed"
+lower-iota = "serifed-flat-tailed"
+lower-tau = "flat-tailed"
+cyrl-em = "flat-bottom-serifed"
+at = "fourfold"
+percent = "rings-continuous-slash"
 
 [buildPlans.iosevka-etoile.variants.italic]
 f = "flat-hook-tailed"
+i = "serifed-flat-tailed"
+l = "serifed-flat-tailed"
+w = "straight-flat-top-motion-serifed"
+long-s = "flat-hook-tailed"
+eszet = "longs-s-lig-tailed-serifless"
 
 [buildPlans.iosevka-etoile.widths.normal]
 shape = 600

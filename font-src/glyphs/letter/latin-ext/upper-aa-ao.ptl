@@ -1,12 +1,11 @@
 $$include '../../../meta/macros.ptl'
 
 import [mix linreg clamp fallback] from"../../../support/utils.mjs"
-import [Dotless CvDecompose] from"../../../support/gr.mjs"
 import [bitOr] from"../../../support/util/mask-bit.mjs"
 
 glyph-module
 
-glyph-block Letter-Latin-Upper-AE-OE : begin
+glyph-block Letter-Latin-Upper-AA-AO : begin
 	glyph-block-import CommonShapes
 	glyph-block-import Common-Derivatives
 	glyph-block-import Letter-Latin-Upper-F : EFVJutLength
@@ -15,12 +14,12 @@ glyph-block Letter-Latin-Upper-AE-OE : begin
 
 	define [AHalfShape pShift df top fStraightBar slabKind] : begin
 		local { subDf shift } : SubDfAndShift pShift df
-		return : WithTransform [ApparentTranslate shift 0]
+		return : with-transform [ApparentTranslate shift 0]
 			ALetterShape subDf fStraightBar slabKind top df.mvs
 
 	define [AHalfShapeMask pShift df top fStraightBar slabKind] : begin
 		local { subDf shift } : SubDfAndShift pShift df
-		return : WithTransform [ApparentTranslate shift 0]
+		return : with-transform [ApparentTranslate shift 0]
 			AMaskShape subDf fStraightBar top df.mvs
 
 	define SLAB-NONE    0
@@ -45,15 +44,13 @@ glyph-block Letter-Latin-Upper-AE-OE : begin
 	foreach { prefix { code mk height } } [Object.entries ALetters] : do
 		foreach { suffix { fStraightBar skLeft skRight } } [Object.entries AConfig] : do
 			create-glyph "\(prefix)/Left.\(suffix)" : glyph-proc
-				define df : DivFrame para.diversityM 3.5
-				set-width df.width
+				define df : include : DivFrame para.diversityM 3.5
 				include : df.markSet.(mk)
 				set-base-anchor 'cvDecompose' 0 0
 				include : AHalfShape 0 df height fStraightBar skLeft
 
 			create-glyph "\(prefix)/LeftMask.\(suffix)" : glyph-proc
-				define df : DivFrame para.diversityM 3.5
-				set-width df.width
+				define df : include : DivFrame para.diversityM 3.5
 				include : df.markSet.(mk)
 				set-base-anchor 'cvDecompose' 0 0
 				include : AHalfShapeMask 0 df height fStraightBar skLeft
@@ -84,11 +81,6 @@ glyph-block Letter-Latin-Upper-AE-OE : begin
 				define topSerifGap : Math.max (0.1 * (df.rightSB - df.leftSB)) [AdviceStroke 6]
 				define { left leftMask right rightMask } srcs
 
-				include : add-glyph-dependency left
-				include : add-glyph-dependency leftMask
-				include : add-glyph-dependency right
-				include : add-glyph-dependency rightMask
-
 				include [refer-glyph left] AS_BASE ALSO_METRICS
 				include : difference
 					refer-glyph right
@@ -96,8 +88,8 @@ glyph-block Letter-Latin-Upper-AE-OE : begin
 					difference
 						intersection
 							MaskAbove (height - Stroke)
-							WithTransform [ApparentTranslate topSerifGap 0] [refer-glyph leftMask]
-						WithTransform [ApparentTranslate (OX - 0.1) 0] [refer-glyph rightMask]
+							with-transform [ApparentTranslate topSerifGap 0] [refer-glyph leftMask]
+						with-transform [ApparentTranslate (OX - 0.1) 0] [refer-glyph rightMask]
 
 	derive-multi-part-glyphs 'AO' 0xA734 {"AA/Left" "AA/LeftMask" "OO/right"} : function [srcs gr] : glyph-proc
 		define df : DivFrame para.diversityM 3.5

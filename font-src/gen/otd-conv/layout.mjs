@@ -47,8 +47,7 @@ function ConvertGsubGposImpl(handlers, T, table, glyphs) {
 			}
 		}
 		for (const l in table.lookups) {
-			if (!table.lookups[l]) throw new Error(`Cannot find lookup '${l}'`);
-			ls.declare(l, table.lookups[l]);
+			if (!ls.query(l)) throw new Error("Unreachable: lookupOrder must contain everything");
 		}
 		for (const l in table.lookups) ls.fill(l, table.lookups[l]);
 	}
@@ -107,9 +106,9 @@ class FeatureStore {
 		return this.m_mapping.get(id);
 	}
 	fill(id, data) {
-		const tag = id.slice(0, 4);
+		const tag = data.tag;
 		const lookups = [];
-		for (const lid of data) {
+		for (const lid of data.lookups) {
 			const lookup = this.lookupStore.query(lid);
 			if (lookup) lookups.push(lookup);
 		}
@@ -216,8 +215,9 @@ const GsubChainingHandler = {
 			const inputEnds = st.inputEnds;
 			const applications = [];
 			for (const ap of st.apply) {
-				const lookup = store.query(ap.lookup);
-				if (!lookup) continue out;
+				if (!ap.lookup.name) throw new Error("Unreachable: lookup name must not be null");
+				const lookup = store.query(ap.lookup.name);
+				if (!lookup) throw new Error(`Cannot find lookup '${ap.lookup.name}'`);
 				applications.push({ at: ap.at - inputBegins, apply: lookup });
 			}
 			dst.rules.push({ match, inputBegins, inputEnds, applications });

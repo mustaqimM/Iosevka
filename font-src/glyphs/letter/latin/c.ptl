@@ -1,27 +1,27 @@
 $$include '../../../meta/macros.ptl'
 
 import [mix linreg clamp fallback] from"../../../support/utils.mjs"
-import [Dotless CvDecompose MathSansSerif] from"../../../support/gr.mjs"
+import [DependentSelector MathSansSerif] from"../../../support/gr.mjs"
 
 glyph-module
 
 glyph-block Letter-Latin-C : begin
 	glyph-block-import CommonShapes
 	glyph-block-import Common-Derivatives
-	glyph-block-import Mark-Adjustment : ExtendBelowBaseAnchors
+	glyph-block-import Mark-Adjustment : ExtendAboveBaseAnchors ExtendBelowBaseAnchors
 	glyph-block-import Mark-Shared-Metrics : markStroke
-	glyph-block-import Letter-Shared : CreateAccentedComposition
-	glyph-block-import Letter-Shared-Shapes : SerifFrame CurlyTail DToothlessRise ArcStartHookTop
+	glyph-block-import Letter-Shared : CreateDependentComposite
+	glyph-block-import Letter-Shared-Shapes : SerifFrame CurlyTail DToothlessRise
 	glyph-block-import Letter-Shared-Shapes : SerifedArcStart SerifedArcEnd InwardSlabArcStart
 	glyph-block-import Letter-Shared-Shapes : ArcStartSerif ArcEndSerif
-	glyph-block-import Letter-Shared-Shapes : LetterBarOverlay PalatalHook RetroflexHook
+	glyph-block-import Letter-Shared-Shapes : LetterBarOverlay PalatalHook RetroflexHook TopHook
 	glyph-block-import Letter-Shared-Shapes : ArcStartSerifWidth ArcStartSerifDepth
 	glyph-block-import Letter-Blackboard : BBS BBD
 
 	define SLAB-NONE       0
 	define SLAB-CLASSICAL  1
 	define SLAB-INWARD     2
-	define SLAB-FLAT       3
+	define FLAT-CONNECTION 3
 
 	glyph-block-export CShapeT
 	define [CShapeT sink offset df st sb top bot ada adb hook sw origBar] : sink
@@ -32,7 +32,7 @@ glyph-block Letter-Latin-C : begin
 				g4 (df.rightSB - offset) (top - DToothlessRise)
 				g4 (df.middle - CorrectionOMidX * sw) (top - O - offset)
 				archv
-			[Just SLAB-FLAT] : list
+			[Just FLAT-CONNECTION] : list
 				flat (df.rightSB - offset) (top - offset)
 				curl (df.middle - CorrectionOMidX * sw) (top - offset)
 				archv
@@ -49,6 +49,10 @@ glyph-block Letter-Latin-C : begin
 				arcvh
 				g4 (df.middle + CorrectionOMidX * sw) (bot + O + offset)
 				g4 (df.rightSB - offset) (bot + DToothlessRise)
+			[Just FLAT-CONNECTION] : list
+				arcvh
+				flat (df.middle + CorrectionOMidX * sw) (bot + O + offset)
+				curl (df.rightSB - offset) (bot + O + offset)
 			_ : list
 				hookend (bot + O + offset)
 				g4 (df.rightSB - offset) (bot + [fallback hook Hook])
@@ -61,7 +65,7 @@ glyph-block Letter-Latin-C : begin
 				g4 (df.leftSB + offset) (top - DToothlessRise)
 				g4 (df.middle - CorrectionOMidX * sw) (top - O - offset)
 				archv
-			[Just SLAB-FLAT] : list
+			[Just FLAT-CONNECTION] : list
 				flat (df.leftSB + offset) (top - offset)
 				curl (df.middle - CorrectionOMidX * sw) (top - offset)
 				archv
@@ -78,6 +82,10 @@ glyph-block Letter-Latin-C : begin
 				arcvh
 				g4 (df.middle + CorrectionOMidX * sw) (bot + O + offset)
 				g4 (df.leftSB + offset) (bot + DToothlessRise)
+			[Just FLAT-CONNECTION] : list
+				arcvh
+				flat (df.middle + CorrectionOMidX * sw) (bot + O + offset)
+				curl (df.leftSB + offset) (bot + O + offset)
 			_ : list
 				hookend (bot + O + offset)
 				g4 (df.leftSB + offset) (bot + [fallback hook Hook])
@@ -106,7 +114,7 @@ glyph-block Letter-Latin-C : begin
 		local sw : AdviceStroke2 2 3 XH
 		local fine : AdviceStroke2 3 3 XH
 		local rinner : ((XH * 0.45) - fine * 1.5) / 2
-		local m1 : SB + O + sw * HVContrast
+		local m1 : SB + O + [HSwToV sw]
 		local x2 : SB + sw * 0.3
 		local y2 : -XH * 0.05
 
@@ -130,7 +138,7 @@ glyph-block Letter-Latin-C : begin
 		export : define [revTopSerif] : AutoStartSerifL df sty top hook sw
 		export : define [revBotSerif] : AutoStartSerifLB df styBot bot hook sw
 
-		export : define [hookTop] : ArcStartHookTop df.rightSB top sw (HookX * hook / Hook) hook
+		export : define [hookTop] : TopHook.arcStart df.rightSB top hook (refSw -- sw)
 
 		# Used by Cyrillic Koppa
 		export : define [baseTopOnly] : CShapeT dispiro 0 df sty SLAB-NONE top bot ada adb hook sw ob
@@ -150,13 +158,6 @@ glyph-block Letter-Latin-C : begin
 		hybridSerifed1          { SLAB-INWARD    SLAB-CLASSICAL }
 
 	foreach { suffix { sty styBot } } [Object.entries CConfig] : do
-		define [cShape df top bot ada adb hook sw ob]
-			CShapeT    dispiro 0 df sty styBot top bot ada adb hook sw ob
-		define [cShapeTopOnly df top bot ada adb hook sw ob]
-			CShapeT    dispiro 0 df sty SLAB-NONE top bot ada adb hook sw ob
-		define [revCShape df top bot ada adb hook sw ob]
-			RevCShapeT dispiro 0 df sty styBot top bot ada adb hook sw ob
-
 		create-glyph "C.\(suffix)" : glyph-proc
 			include : MarkSet.capital
 			local lf : CLetterForm [DivFrame 1] sty styBot CAP 0
@@ -176,11 +177,29 @@ glyph-block Letter-Latin-C : begin
 			include : MarkSet.capital
 			local lf : CLetterForm [DivFrame 1] sty styBot CAP 0
 			include : union [lf.base] [lf.hookTop] [lf.botSerif]
+			include : ExtendAboveBaseAnchors (CAP + Ascender - XH)
 
 		create-glyph "c.\(suffix)" : glyph-proc
 			include : MarkSet.e
-			set-base-anchor 'cvDecompose' 0 0
 			local lf : CLetterForm [DivFrame 1] sty styBot XH 0
+				ada -- SmallArchDepthA
+				adb -- SmallArchDepthB
+			include : lf.full
+
+		create-glyph "c/centKernelStd.\(suffix)" : glyph-proc
+			set-width 0
+			set-mark-anchor 'cvDecompose' Middle (XH / 2)
+			local lf : CLetterForm [DivFrame 1] sty styBot XH 0
+				ada -- SmallArchDepthA
+				adb -- SmallArchDepthB
+			include : lf.full
+
+		create-glyph "c/centKernelCap.\(suffix)" : glyph-proc
+			set-width 0
+			set-mark-anchor 'cvDecompose' Middle (CAP / 2)
+			local t : CAP / 2 + XH / 2
+			local b : CAP / 2 - XH / 2
+			local lf : CLetterForm [DivFrame 1] sty styBot t b
 				ada -- SmallArchDepthA
 				adb -- SmallArchDepthB
 			include : lf.full
@@ -192,15 +211,26 @@ glyph-block Letter-Latin-C : begin
 				adb -- SmallArchDepthB
 			include : lf.revFull
 
-		create-glyph "revSmallCSideways.\(suffix)" : glyph-proc
+		create-glyph "turncSideways.\(suffix)" : glyph-proc
 			local df : DivFrame (XH / Width) 2 (XH * 0.1 / SB)
+			include : df.markSet.e
 			local top : Width - SB
 			local p : mix 1 (Width / UPM) 0.5
 			include : PointingTo Width XH Width 0 : function [] : glyph-proc
 				local lf : CLetterForm df sty styBot top 0 (hook -- Hook * p)
-				include : lf.revFull
+				include : lf.full
 				include : FlipAround df.middle (top / 2)
 				include : Translate 0 (SB / 2)
+
+		create-glyph "cyrl/esWide.\(suffix)" : glyph-proc
+			local df : include : DivFrame para.diversityM 3
+			include : df.markSet.e
+			local desc : -LongJut + 0.5 * Stroke
+			include : ExtendBelowBaseAnchors desc
+			local lf : CLetterForm df sty styBot XH desc
+				ada -- [df.archDepthA SmallArchDepth df.mvs]
+				adb -- [df.archDepthB SmallArchDepth df.mvs]
+			include : lf.full
 
 		create-glyph "cHookTop.\(suffix)" : glyph-proc
 			include : MarkSet.e
@@ -208,6 +238,7 @@ glyph-block Letter-Latin-C : begin
 				ada -- SmallArchDepthA
 				adb -- SmallArchDepthB
 			include : union [lf.base] [lf.hookTop] [lf.botSerif]
+			include : ExtendAboveBaseAnchors Ascender
 
 		create-glyph "cCurlyTail.\(suffix)" : glyph-proc
 			include : MarkSet.e
@@ -220,11 +251,11 @@ glyph-block Letter-Latin-C : begin
 			include : lf.full
 
 		define [KoppaShapeT styTop styBot top base] : union
-			VBar.r (Middle + Stroke * HVContrast) Descender (Stroke / 2)
+			VBar.r (Middle + [HSwToV Stroke]) Descender (Stroke / 2)
 			difference base
-				Rect (top / 2) Descender (Middle + Stroke * HVContrast) (Width * 4)
+				Rect (top / 2) Descender (Middle + [HSwToV Stroke]) (Width * 4)
 				Rect (XH / 2) [mix Stroke Hook 0.5] Middle (Width * 4)
-			if styBot [HSerif.mb (Middle + HalfStroke * HVContrast) Descender MidJutSide] [no-shape]
+			if styBot [HSerif.mb (Middle + [HSwToV HalfStroke]) Descender MidJutSide] [no-shape]
 
 		create-glyph "cyrl/Koppa.\(suffix)" : glyph-proc
 			include : MarkSet.capDesc
@@ -239,13 +270,13 @@ glyph-block Letter-Latin-C : begin
 			include : KoppaShapeT sty styBot XH : union [lf.baseTopOnly] [lf.topSerif]
 
 		create-glyph "C/descBase.\(suffix)" : glyph-proc
-			include : MarkSet.capDesc
+			include : MarkSet.capital
 			local lf : CLetterForm [DivFrame 1] sty styBot CAP 0
 			include : union [lf.descBase] [lf.topSerif]
 			include : VBar.r RightSB 0 [ArcStartSerifDepth Hook] [ArcStartSerifWidth Stroke]
 
 		create-glyph "c/descBase.\(suffix)" : glyph-proc
-			include : MarkSet.capDesc
+			include : MarkSet.e
 			local lf : CLetterForm [DivFrame 1] sty styBot XH 0
 				ada -- SmallArchDepthA
 				adb -- SmallArchDepthB
@@ -281,15 +312,18 @@ glyph-block Letter-Latin-C : begin
 	link-reduced-variant 'c/sansSerif' 'c' MathSansSerif
 	link-reduced-variant 'c/turnDescBase' 'c'
 	select-variant 'revSmallC' 0x2184 (follow -- 'c')
+	select-variant 'c/centKernelStd' (follow -- 'c')
+	select-variant 'c/centKernelCap' (follow -- 'c')
 	alias 'cyrl/es' 0x441 'c'
 	alias 'grek/lunateSmallSigma' 0x3F2 'c.serifless'
-	select-variant 'revSmallCSideways' 0x1D12 (follow -- 'c')
+	select-variant 'turncSideways' 0x1D12 (follow -- 'c')
+	select-variant 'cyrl/esWide' 0x1C83 (follow -- 'c')
 
 	select-variant 'cTopSerifOnly' (shapeFrom -- 'c')
 
 	select-variant 'cCurlyTail' 0x255
 	select-variant 'cHookTop' 0x188
-	select-variant 'stretchedC' 0x297 (follow -- 'C')
+	select-variant 'stretchedC' 0x297 (follow -- 'c')
 
 	select-variant 'cyrl/Koppa' 0x480 (follow -- 'C')
 	select-variant 'cyrl/koppa' 0x481 (follow -- 'c')
@@ -319,43 +353,56 @@ glyph-block Letter-Latin-C : begin
 		LetterBarOverlay.l SB (CAP * 0.6)
 	derive-composites 'currency/euroSign' 0x20AC 'C' 'currency/euroSign/overlay'
 
-	create-glyph 'currency/centSignBar.open' : glyph-proc
-		set-width 0
-		set-mark-anchor 'cvDecompose' 0 0
-		include : dispiro
-			widths.center [AdviceStroke 3]
-			flat Middle (XH - HalfStroke)
-			curl Middle (XH - Descender / 2) [heading Upward]
-		include : dispiro
-			widths.center [AdviceStroke 3]
-			flat Middle (Descender / 2) [heading Upward]
-			curl Middle HalfStroke
+	define CentBarConfig : object
+		open           { (Descender / 2) (XH - Descender / 2) 0 "std" }
+		through        { (Descender / 2) (XH - Descender / 2) 1 "std" }
+		interrupted    { (Descender / 2) (XH - Descender / 2) 2 "std" }
+		openCap        { 0               CAP                  0 "cap" }
+		throughCap     { 0               CAP                  1 "cap" }
+		interruptedCap { 0               CAP                  2 "cap" }
 
-	create-glyph 'currency/centSignBar.through' : glyph-proc
-		include [refer-glyph 'currency/centSignBar.open'] AS_BASE ALSO_METRICS
+	foreach { suffix { bot top fillType selector } } [Object.entries CentBarConfig] : do
+		create-glyph "cent/bar.\(suffix)" : glyph-proc
+			define w : AdviceStroke 3
+			define fine : AdviceStroke [StrokeWidthBlend 3 5.5]
 
-		define fine : AdviceStroke [StrokeWidthBlend 3 5]
-		include : VBar.m Middle (XH - HalfStroke) (0 + HalfStroke) fine
+			local yMid : mix bot top 0.5
+			local fillBottom : yMid - XH / 2 + HalfStroke
+			local fillTop : yMid + XH / 2 - HalfStroke
 
-	create-glyph 'currency/centSignBar.barInterrupted' : glyph-proc
-		include [refer-glyph 'currency/centSignBar.open'] AS_BASE ALSO_METRICS
+			set-base-anchor 'cvDecompose' Middle yMid
 
-		define cofine : AdviceStroke 4
-		define fine : AdviceStroke [StrokeWidthBlend 3 5]
-		define gap : Math.max (XH / 8) [AdviceStroke2 6 6 XH]
-		include : dispiro
-			flat Middle (XH - HalfStroke)  [widths.center.heading cofine Downward]
-			curl Middle (XH / 2 + gap / 2) [widths.center.heading fine Downward]
-		include : dispiro
-			flat Middle (HalfStroke)       [widths.center.heading cofine Upward]
-			curl Middle (XH / 2 - gap / 2) [widths.center.heading fine Upward]
+			# Draw the outside subbars
+			include : dispiro
+				flat Middle fillTop [widths.center w]
+				curl Middle top     [heading Upward]
+			include : dispiro
+				flat Middle fillBottom [widths.center w]
+				curl Middle bot        [heading Downward]
 
-	select-variant 'currency/centSignBar' (follow -- 'cent')
+			include : match fillType
+				[Just 1] : VBar.m Middle fillBottom fillTop fine
+				[Just 2] : begin
+					define cofine : AdviceStroke 4
+					define gap : Math.max (XH / 8) [AdviceStroke2 6 6 XH]
 
-	create-glyph 'currency/centSign' 0xA2 : glyph-proc
-		include [refer-glyph 'c'] AS_BASE ALSO_METRICS
-		include [refer-glyph 'currency/centSignBar']
-		CvDecompose.set currentGlyph { 'c' 'currency/centSignBar' }
+					union
+						dispiro
+							flat Middle fillTop [widths.center.heading cofine Downward]
+							curl Middle (yMid + gap / 2) [widths.center.heading fine Downward]
+						dispiro
+							flat Middle fillBottom [widths.center.heading cofine Upward]
+							curl Middle (yMid - gap / 2) [widths.center.heading fine Upward]
+
+				__ : no-shape
+
+			DependentSelector.set currentGlyph selector
+
+	select-variant 'cent/bar' (follow -- 'cent')
+
+	CreateDependentComposite 'cent/centSign' 0xA2 "cent/bar" : object
+		'std' 'c/centKernelStd'
+		'cap' 'c/centKernelCap'
 
 	turned 'turnC' 0x186 'C' Middle (CAP / 2)
 	turned 'turnc' 0x254 'c' Middle (XH / 2)
@@ -366,15 +413,12 @@ glyph-block Letter-Latin-C : begin
 	turned 'turnc/turnDescBase' null 'c/turnDescBase' Middle (XH / 2)
 	derive-composites 'turncRetroflexHook' 0x1D97 'turnc/turnDescBase'
 		RetroflexHook.l SB 0 (yAttach -- DToothlessRise)
-		ExtendBelowBaseAnchors (-Hook)
 
 	derive-composites 'CPalatalHook' 0xA7C4 'C/descBase'
 		PalatalHook.r RightSB 0 (yAttach -- DToothlessRise)
-		ExtendBelowBaseAnchors (-Hook)
 
 	derive-composites 'cPalatalHook' 0xA794 'c/descBase'
 		PalatalHook.r RightSB 0 (yAttach -- DToothlessRise)
-		ExtendBelowBaseAnchors (-Hook)
 
 	derive-composites 'grek/dotLunateSigma' 0x3FE 'grek/lunateSigma' 'innerDot'
 	derive-composites 'grek/dotRevLunateSigma' 0x3FF 'grek/revLunateSigma' 'innerDot'

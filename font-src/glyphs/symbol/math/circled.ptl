@@ -20,7 +20,7 @@ glyph-block Symbol-Math-Circled : begin
 	MakeMathCircled 0x2298 'innerMultiplyStroke1'
 	MakeMathCircled 0x2299 'mathCDotInner'
 	MakeMathCircled 0x229A 'whiteSmallCircle.NWID'
-	MakeMathCircled 0x229B 'mathAsterisk'
+	MakeMathCircled 0x229B 'opAsterisk'
 	MakeMathCircled 0x29B6 'innerVerticalBar'
 	MakeMathCircled 0x29B8 'innerMultiplyStroke2'
 	MakeMathCircled 0x29BA 'innerIsraeliPlus'
@@ -28,6 +28,13 @@ glyph-block Symbol-Math-Circled : begin
 	MakeMathCircled 0x29BE 'whiteVerySmallCircle.NWID'
 	MakeMathCircled 0x29BF 'blackVerySmallCircle.NWID'
 	MakeMathCircled 0x2A38 'innerDivide'
+
+	define [MakeMathCircledAllowingOverflow u inner] : begin
+		derive-glyphs "mathCircledAllowingOverflow{\(inner)}" u inner : function [src gr]
+			composite-proc [refer-glyph 'mathO'] [refer-glyph src]
+
+	MakeMathCircledAllowingOverflow 0x2300 'innerMultiplyStroke1'
+	MakeMathCircledAllowingOverflow 0x29BB 'innerMultiply'
 
 	define [MakeMathLeftHalfCircled u inner] : begin
 		derive-glyphs "mathLeftHalfCircled{\(inner)}" u inner : function [src gr]

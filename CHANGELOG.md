@@ -1,122 +1,163 @@
-## Modifications since version 2.x
+## Modifications since last major version
 
-### 24.1.3
+### 27.3.5
 
-* Add Characters:
-  - LATIN CAPITAL LETTER INSULAR F (`U+A77B`) (#1786).
-  - LATIN SMALL LETTER INSULAR F (`U+A77C`) (#1786).
-  - LATIN CAPITAL LETTER INSULAR S (`U+A784`) (#1786).
-  - LATIN SMALL LETTER INSULAR S (`U+A785`) (#1786).
-* Fix missing U+1D7F mapping (#1787).
-* Fix shape of U serifs (#1788).
+* Add italic form of CYRILLIC SMALL LETTER THREE-LEGGED TE (`U+1C85`).
+* Add top-right serif to fully serifed form for CYRILLIC SMALL LETTER TALL TE (`U+1C84`).
+* Fix serifs of GREEK LETTER DIGAMMA (`U+03DC`) under `ss12`.
+* Improve crossbar position of GREEK SMALL LETTER DIGAMMA (`U+03DD`) and add a middle serif under slab.
+* Refine Greek Capital Sho (U+03F7) glyph (#2079).
+* \[Experimental\] Add a font feature for texture control (#2081).
+  - Currently only available through custom builds with `build-texture-feature = true`.
+* Make SYMBOL FOR DELETE FORM TWO (`U+2425`) narrow by default, align with other Control Pictures characters (#2084).
+* Make APL FUNCTIONAL SYMBOL CIRCLE STAR (`U+235F`) always be five-pointed and upright, to align its pentagram history (#2083).
 
 
-### 24.1.2
+### 27.3.4
+
+* Disunify anonymous untagged variant selectors for Cyrillic Capital Yeri/Yery for consistency in style-driven configurations.
+* Make LATIN CAPITAL LETTER Y WITH LOOP (`U+1EFE`) follow variants of capital `Y` (`cv24`) for a more balanced slab-italic form like that of Cyrillic Capital U.
+* Remove `base-serifed`-only variants for CYRILLIC SMALL LETTER STRAIGHT U (`U+04AF`, `U+04B1`).
+* Make Etoile use `flat-bottom-serifed` for `M` and Cyrillic Lower Em (`cv13`, `cv74`).
+
+
+### 27.3.3
+
+* Make `cv96` take effect on math asterisk operators (#2066).
+* Fix serifs of italic small Yat in Etoile (#2067).
+* Add characters:
+  - LEFTWARDS HARPOON WITH BARB UP TO BAR (`U+2952`) .. DOWNWARDS HARPOON WITH BARB LEFT FROM BAR (`U+2961`).
+
+
+### 27.3.2
+
+* Fix overlapping serifs of italic Yat (#2061).
+* Fix width of VERY MUCH GREATER-THAN (`U+22D9`).
+* Remove duplicate variants for `U+0181`, `U+018A`, `U+01A4`, and `U+2C64`.
+* Remove asymmetric variants for small capital `B` (`U+0299`, `U+1D03`) and Cyrillic Lower Ve (`U+0432`).
+
+
+### 27.3.1
+
+* Fix application of `cv39` on italic Cyrillic Yat.
+* Fix mark placement for `U+024F`.
+* Fix overlay placement of Tugrik Sign (U+20AE) under Etoile (#2060).
+
+
+### 27.3.0
+
+* Make the tailed variants of `i` and `l` use the fully-tailed shape even when upright, as is consistent with `t = bent-hook` (#1692).
+  - The old, slightly-curly variants for `i`, `l`, iota (`ι`) and tau (`τ`) are moved to `semi-tailed` variants.
+  - Corresponded SSes are changed to keep the shape identical to the old version.
+* Make Cyrillic Yat to follow Yeri variants. Italic Yat will also respond to variants of `n` (#2047).
+* Add short-tailed lowercase tau (`τ`) (#2050).
+* Fix tailed variants for `U+02A0`.
+* Stylistic set fixes:
+  * Fix `cv44` and `cv99` for `ss13`.
+  * Fix `cv48` and `cv54` for `ss17`.
+  * Fix `cv51` for Etoile.
+  * Fix `cv52` for `ss15` and Etoile.
+  * Fix `cv58` for `ss15`.
+  * Fix `cv59` for `ss07`.
+  * Fix `cv61` for `ss15` and `ss17`.
+  * Fix `cv66` for `ss01`, `ss06`, and `ss15`.
+  * Fix `vsAF` for `ss11`.
+  * Fix `vsAL` for `ss09` and `ss18`.
+
+
+### 27.2.1
+
+* Refine shape of flat `5` (#2030).
+* Fix `ss02`, `ss04`, `ss06`, `ss13`, `ss17`'s application on `i` and `j` (#2033).
+* Add tailed lower lambda (#2036).
+* Add Chancery and Semi-Chancery variants for lowercase `x` and Greek Chi (#2037).
+* Add `arrow-lr` ligation group for C-like's spaceship operators (#2041).
+* Add raised cap-height cent sign (`¢`) variants to `VSAM` (#2044).
+* Fix `cv02`, `cv04`, `cv05`, `cv06`, `cv11`, `cv12`, `cv15`, `cv17`, `cv18`, `cv25`, `cv28`, `cv43`, `cv70`, `cv71`, `cv81`, and `cv82` for `ss17` under slab.
+
+
+### 27.2.0
 
 * Add characters
-  - LATIN SMALL LETTER SCRIPT G WITH CROSSED-TAIL (`U+AB36`).
-  - LATIN SMALL LETTER M WITH CROSSED-TAIL (`U+AB3A`).
-  - LATIN SMALL LETTER N WITH CROSSED-TAIL (`U+AB3B`).
-  - LATIN SMALL LETTER ENG WITH CROSSED-TAIL (`U+AB3C`).
-  - MODIFIER LETTER SMALL S WITH CURL (`U+107BA`).
-  - LATIN SMALL LETTER S WITH CURL (`U+1DF1E`).
-* Fix broken geometry of CYRILLIC CAPITAL LETTER ZHWE (`U+A684`) and CYRILLIC SMALL LETTER ZHWE (`U+A685`) under some settings of `cv63` and `cv64` (#1769).
-* Improve glyphs of PITCHFORK WITH TEE TOP (`U+2ADA`) ... NONFORKING (`U+2ADD`) such that their terminals are of consistent height with each other.
-* Fix alignment in various APL characters (#1771).
-* Fix shape and variant selection for LATIN EPIGRAPHIC LETTER SIDEWAYS I (`U+A7F7`) (#1773).
-* Fix combining mark anchors for LATIN CAPITAL LETTER UPSILON (`U+01B1`) and LATIN CAPITAL LETTER V WITH HOOK (`U+01B2`).
-* Fix combining mark anchors for LATIN SMALL LETTER EZH WITH TAIL (`U+01BA`), LATIN SMALL LETTER D WITH CURL (`U+0221`), LATIN SMALL LETTER EZH WITH CURL (`U+0293`), and LATIN CAPITAL LETTER INSULAR G (`U+A77D`) (#1777).
-* Fix shape of bent arrows (#1774).
-* Fix placement of marks in phonetic ligatures (#1783).
+  - TELEPHONE RECORDER (`U+2315`) (#2020).
+  - COUNTERSINK (`U+2335`) (#2020).
+  - BROKEN CIRCLE WITH NORTHWEST ARROW (`U+238B`) (#2020).
+  - TRIPLE PLUS (`U+29FB`) (#2020).
+* Correction of letter assignments for stylistic styles:
+  - Fix `cv10` and `cv30` for `ss14`.
+  - Fix `cv12`, `cv36`, and `cv82` for `ss16`.
+  - Fix `cv22`, `cv31`, `cv47`, and `cv91` for `ss07`.
+  - Fix `cv26` for `ss07`, `ss14`, and `ss15`.
+  - Fix `cv28`, `cv43`, and `cv70` for `ss01`, `ss04`, `ss05`, `ss06`, `ss07`, `ss13`, and `ss16`.
+  - Fix `cv55` for `ss03`, `ss09`, `cv12`, and `ss14`.
+  - Fix `cv53` and `cv84` for `ss10`.
+  - Fix `cv58` for `ss06` and `ss10`.
+  - Fix `cv59` for `ss09` and `ss18`.
+  - Fix `cv61` for `ss08` and `ss20`.
+  - Fix `cv62` for `ss01`.
+  - Fix `cv63` for `ss02`, `ss05`, and `ss12`.
+  - Fix `cv68` for `ss03`.
+  - Fix `cv72` for `ss03`, `ss05`, `ss06`, `cv07`, and `ss13`.
+  - Fix `cv77` for `ss03`, `ss04`, `ss06`, `ss07`, `ss08`, `ss12`, `ss13`, and `ss18`.
+  - Fix `cv79` and `cv80` for `ss01`, `ss02`, `ss04`, `ss05`, `ss06`, `ss07`, `ss09`, `ss12`, `ss13`, `ss14`, `ss16`, `ss18`, and Aile.
+  - Fix `cv88` for `ss18`.
+  - Fix `vsAA` and `vsAM` for `ss06`.
+  - Fix `vsAG` for `ss03` and Etoile.
 
 
-### 24.1.1
+### 27.1.0
 
-* Add characters
-  - CYRILLIC CAPITAL LETTER DZZHE (`U+052A`).
-  - CYRILLIC SMALL LETTER DZZHE (`U+052B`).
-  - COMBINING DOT ABOVE LEFT (`U+1DF8`) (#1597).
-  - COMBINING DOT BELOW LEFT (`U+1DFA`) (#1597).
-  - SALTIRE (`U+2613`).
-  - MERCURY (`U+263F`).
-  - MEDIUM SMALL WHITE CIRCLE (`U+26AC`).
-  - NEUTER (`U+26B2`).
-  - UPWARDS QUADRUPLE ARROW (`U+27F0`) (#1756).
-  - DOWNWARDS QUADRUPLE ARROW (`U+27F1`) (#1756).
-  - LEFTWARDS QUADRUPLE ARROW (`U+2B45`) (#1756).
-  - RIGHTWARDS QUADRUPLE ARROW (`U+2B46`) (#1756).
-  - CYRILLIC CAPITAL LETTER ZHWE (`U+A684`).
-  - CYRILLIC SMALL LETTER ZHWE (`U+A685`).
-  - LATIN EPIGRAPHIC LETTER INVERTED M (`U+A7FD`) (#1597).
-  - MUSICAL SYMBOL DOUBLE SHARP (`U+1D12A`) (#1299).
-  - MUSICAL SYMBOL DOUBLE FLAT (`U+1D12B`) (#1299).
-  - MUSICAL SYMBOL QUARTER TONE SHARP (`U+1D132`).
-  - MUSICAL SYMBOL QUARTER TONE FLAT (`U+1D133`).
-  - LATIN SMALL LETTER REVERSED SCRIPT G (`U+1DF01`) (#1597).
-  - LATIN SMALL LETTER REVERSED K (`U+1DF03`) (#1597).
-  - LATIN SMALL LETTER REVERSED ENG (`U+1DF07`) (#1597).
-* Fix hook alignment of LATIN SMALL LETTER T WITH HOOK AND RETROFLEX HOOK (`U+1DF09`) (#1754).
-* Improve glyph of CROSS MARK (`U+274C`) to be both heavy and large to match its intended counterpart HEAVY LARGE CIRCLE (`U+2B55`).
-* Disunify LATIN CAPITAL LETTER OMEGA (`U+A7B6`) and LATIN SMALL LETTER OMEGA (`U+A7B7`) from CYRILLIC CAPITAL LETTER BROAD OMEGA (`U+A64C`) and CYRILLIC SMALL LETTER BROAD OMEGA (`U+A64D`).
-* Fix `cv86` application to HYPHEN WITH DIAERESIS (`U+2E1A`) (#1755).
-* Make partial-derivative (`∂`) curly by default.
-* Fix variant assignment of `cv31` under `ss07`.
-* Fix variant assignment of `cv55` under `ss08`.
-* Fix variant assignments of `cv59` under `ss08`, `ss10`, and `ss14`.
-* Fix variant assignments of `cv76`, `cv80`, `cv89`, `cv91`, and `cv98` under `ss11`.
-* Fix variant assignments of `VXSG` under `ss03`, `ss04`, `ss09`, `ss13`, and `ss18`.
-* Fix variant assignments of `VXAA` under `ss01`, `ss02`, `ss03`, `ss04`, and `ss14`.
-* Correct description of `k` and eszet (`ß`) variants.
+* \[**Breaking**\] Change of variant names:
+  - `five`.`vertical-upper-left-bar` → `five`.`upright-arched`
+  - `five`.`oblique-upper-left-bar` → `five`.`oblique-arched`
+* Add characters:
+  - CYRILLIC CAPITAL LETTER DCHE (`U+052C`) (#1897).
+  - CYRILLIC SMALL LETTER DCHE (`U+052D`) (#1897).
+* Add separate variant selector `VXAA` for Cyrillic Lower Er (`р`) (#2006).
+* Add separate variant selector `VXAB` for Cyrillic Lower U (`у`) (#2006).
+* Add flat middle stroke variant for `5` (#1995).
+* Fix variants for Serbian Cyrillic Lower Pe (`п`).
 
 
-### 24.1.0
+### 27.0.2
 
- * Fix missing serif in cursive-motion-serifed variants of `y` (#1751).
- * Correct description of various character variants.
- * Disunify variant selectors of PARTIAL DIFFERENTIAL (`U+2202`) and LATIN SMALL LETTER ETH (`U+00F0`) (#1746).
+* Add Characters
+  - LATIN LETTER SMALL CAPITAL R WITH RIGHT LEG (`U+AB46`).
+* Add variants for Cyrillic lower Ef (`ф`) with a split bowl (#1992).
+* Add Bulgarian local variants for Cyrillic Ef (`Ф`,`ф`).
+* Fix serifs in `U+01A6`.
+* Improve serifs of Turn M (`U+019C`, `U+026F`) under quasi-proportional.
+* Make Turn h (`U+0265`) and Turn M with Long Leg (`U+0270`) follow serif variants of `u`.
+* Optimize geometry for `U+A65A` and `U+A65B` under extended width.
+* Fix assignment of `8` for `ss14` (#1999).
 
 
-### 24.0.0
+### 27.0.1
 
-* \[**BREAKING**\] Add taller slash, broken slash and broken zero variants for Zero. As a result, current variants are reordered (#1307, #1509, #1678).
-* \[**BREAKING**\] Add above-baseline crossed variant for Q. As a result, current variants are reordered (#1533).
-* \[**BREAKING**\] Add `threefold-solid-inline` variant for `@`. As a result, current variants are reordered (#1495).
-* \[**BREAKING**\] Rectify the variant atlas. As a result, if a character's variant list has motion-serifed, then it will have serifless and serifed variants: the serifed-ness will no longer be controlled by SLAB variable. The characters influenced are `M`, `N`, `P`, `R`, `U`, `V`, `W`, `b`, `h`, `m`, `n`, `p`, `q`, `u`, `v`, `w`, `y`.
-* \[**BREAKING**\] Renamed and/or reordered various variants.
-* Add Characters:
-  - VERTICAL BAR WITH HORIZONTAL STROKE (`U+27CA`).
-  - ELEMENT OF OPENING UPWARDS (`U+27D2`).
-  - TRIPLE VERTICAL BAR DELIMITER (`U+2980`).
-  - Z NOTATION SPOT (`U+2981`).
-  - DOTTED FENCE (`U+2999`).
-  - CIRCLED ANTICLOCKWISE-ROTATED DIVISION SIGN (`U+29BC`).
-  - CIRCLED WHITE BULLET (`U+29BE`).
-  - CIRCLED BULLET (`U+29BF`).
-  - SQUARED RISING DIAGONAL SLASH (`U+29C4`) ... SQUARED SQUARE (`U+29C8`).
-  - EQUALS SIGN AND SLANTED PARALLEL (`U+29E3`) ... IDENTICAL TO AND SLANTED PARALLEL (`U+29E5`).
-  - THERMODYNAMIC (`U+29E7`).
-  - REVERSE SOLIDUS OPERATOR (`U+29F5`) ... REVERSE SOLIDUS WITH HORIZONTAL STROKE (`U+29F7`).
-  - PLUS SIGN WITH SMALL CIRCLE ABOVE (`U+2A22`) ... PLUS SIGN WITH TILDE ABOVE (`U+2A24`).
-  - PLUS SIGN WITH TILDE BELOW (`U+2A26`).
-  - PLUS SIGN IN LEFT HALF CIRCLE (`U+2A2D`).
-  - PLUS SIGN IN RIGHT HALF CIRCLE (`U+2A2E`).
-  - MULTIPLICATION SIGN IN LEFT HALF CIRCLE (`U+2A34`) ... CIRCLED MULTIPLICATION SIGN WITH CIRCUMFLEX ACCENT (`U+2A36`).
-  - CIRCLED DIVISION SIGN (`U+2A38`).
-  - UNION WITH MINUS SIGN (`U+2A41`) ... INTERSECTION WITH OVERBAR (`U+2A43`).
-  - LOGICAL AND WITH DOUBLE OVERBAR (`U+2A5E`) ... LOGICAL OR WITH DOUBLE UNDERBAR (`U+2A63`).
-  - TRIPLE HORIZONTAL BAR WITH DOUBLE VERTICAL STROKE (`U+2A68`).
-  - TRIPLE HORIZONTAL BAR WITH TRIPLE VERTICAL STROKE (`U+2A69`).
-  - ALMOST EQUAL TO WITH CIRCUMFLEX ACCENT (`U+2A6F`).
-  - ELEMENT OF OPENING DOWNWARDS (`U+2AD9`) ... NONFORKING (`U+2ADD`).
-  - PARALLEL WITH HORIZONTAL STROKE (`U+2AF2`) ... TRIPLE COLON OPERATOR (`U+2AF6`).
-  - LARGE TRIPLE VERTICAL BAR OPERATOR (`U+2AFC`).
-  - GROUP MARK (`U+2BD2`).
-  - HYPHEN WITH DIAERESIS (`U+2E1A`).
-  - TILDE WITH RING ABOVE (`U+2E1B`).
-  - LEFT VERTICAL BAR WITH QUILL (`U+2E20`).
-  - RIGHT VERTICAL BAR WITH QUILL (`U+2E21`).
-  - DOUBLE HYPHEN (`U+2E40`).
-* Improve height of glyphs derived from DIVIDES (`U+2223`) and PARALLEL TO (`U+2225`) to be the same as APL tacks as they are often used as APL stiles.
-* Add diagonal-tailed variants for lowercase Iota (#1737).
-* Make `VXSF` to influence Eth too (#1738).
+* Add Characters
+  - VERY MUCH LESS-THAN (`U+22D8`) (#1990).
+  - VERY MUCH GREATER-THAN (`U+22D9`) (#1990).
+
+
+### 27.0.0
+
+* \[**Breaking**\] Variants for `π`, `τ` and `«` are inserted into the main tag sequence. As a consequence, variant features after them have the tags changed.
+* \[**Breaking**\] Reordered variants of Eszet.
+* \[**Breaking**\] Change of variant names:
+  - `upper-r`.`straight-motion-serifed` → `upper-r`.`straight-top-left-serifed`
+  - `upper-r`.`curly-motion-serifed` → `upper-r`.`curly-top-left-serifed`
+  - `upper-r`.`standing-motion-serifed` → `upper-r`.`standing-top-left-serifed`
+  - `upper-r`.`straight-open-motion-serifed` → `upper-r`.`straight-open-top-left-serifed`
+  - `upper-r`.`curly-open-motion-serifed` → `upper-r`.`curly-open-top-left-serifed`
+  - `upper-r`.`standing-open-motion-serifed` → `upper-r`.`standing-open-top-left-serifed`
+* Add characters:
+  - COMBINING RING OVERLAY (`U+20D8`).
+* Add bottom-right and top-left bottom-right serifed variants of `R`.
+* Add bottom-left motion serifed variants of Cyrillic Ya (`Я`,`я`).
+* Add cursive variants for Cyrillic Capital/Small Zhe (`Ж`,`ж`) (#1762).
+* Allow R Rotunda (`U+A75A`, `U+A75B`) and Indian Rupee Sign (`U+20B9`) to have a bottom-right serif.
+* Add OpenType `zero` feature (#1966).
+* Fix broken geometry of `U+AB3A` under condensed width.
+* Improve bowl shape of Latin Phi (`U+0278`).
+* Fix dot radius of COMBINING THREE DOTS ABOVE (`U+20DB`), COMBINING FOUR DOTS ABOVE (`U+20DC`), and COMBINING TRIPLE UNDERDOT (`U+20D8`).
 

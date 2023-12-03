@@ -17,6 +17,9 @@ export class GeometryBase {
 	asReferences() {
 		throw new Error("Unimplemented");
 	}
+	getDependencies() {
+		throw new Error("Unimplemented");
+	}
 	unlinkReferences() {
 		return this;
 	}
@@ -49,6 +52,9 @@ export class ContourGeometry extends GeometryBase {
 		return [c1];
 	}
 	asReferences() {
+		return null;
+	}
+	getDependencies() {
 		return null;
 	}
 	filterTag(fn) {
@@ -87,6 +93,9 @@ export class SpiroGeometry extends GeometryBase {
 		return this.m_cachedContours;
 	}
 	asReferences() {
+		return null;
+	}
+	getDependencies() {
 		return null;
 	}
 	filterTag(fn) {
@@ -161,6 +170,9 @@ export class DiSpiroGeometry extends GeometryBase {
 	asReferences() {
 		return null;
 	}
+	getDependencies() {
+		return null;
+	}
 	filterTag(fn) {
 		return this;
 	}
@@ -206,6 +218,9 @@ export class ReferenceGeometry extends GeometryBase {
 		if (this.isEmpty()) return [];
 		return [{ glyph: this.m_glyph, x: this.m_x, y: this.m_y }];
 	}
+	getDependencies() {
+		return [this.m_glyph];
+	}
 	filterTag(fn) {
 		if (this.isEmpty()) return null;
 		return this.unwrap().filterTag(fn);
@@ -238,6 +253,9 @@ export class TaggedGeometry extends GeometryBase {
 	}
 	asReferences() {
 		return this.m_geom.asReferences();
+	}
+	getDependencies() {
+		return this.m_geom.getDependencies();
 	}
 	filterTag(fn) {
 		if (!fn(this.m_tag)) return null;
@@ -281,6 +299,9 @@ export class TransformedGeometry extends GeometryBase {
 			result.push({ glyph, x: x + this.m_transform.x, y: y + this.m_transform.y });
 		return result;
 	}
+	getDependencies() {
+		return this.m_geom.getDependencies();
+	}
 	filterTag(fn) {
 		const e = this.m_geom.filterTag(fn);
 		if (!e) return null;
@@ -319,6 +340,41 @@ export class TransformedGeometry extends GeometryBase {
 	}
 }
 
+export class RadicalGeometry extends GeometryBase {
+	constructor(g) {
+		super();
+		this.m_geom = g;
+	}
+	asContours() {
+		return this.m_geom.asContours();
+	}
+	asReferences() {
+		return null;
+	}
+	getDependencies() {
+		return this.m_geom.getDependencies();
+	}
+	filterTag(fn) {
+		const e = this.m_geom.filterTag(fn);
+		if (!e) return null;
+		return new RadicalGeometry(e);
+	}
+	isEmpty() {
+		return this.m_geom.isEmpty();
+	}
+	measureComplexity() {
+		return this.m_geom.measureComplexity();
+	}
+	unlinkReferences() {
+		return this.m_geom.unlinkReferences();
+	}
+	toShapeStringOrNull() {
+		const sTarget = this.m_geom.toShapeStringOrNull();
+		if (!sTarget) return null;
+		return Format.struct("RadicalGeometry", sTarget);
+	}
+}
+
 export class CombineGeometry extends GeometryBase {
 	constructor(parts) {
 		super();
@@ -348,6 +404,15 @@ export class CombineGeometry extends GeometryBase {
 			for (const c of rs) {
 				results.push(c);
 			}
+		}
+		return results;
+	}
+	getDependencies() {
+		let results = [];
+		for (const part of this.m_parts) {
+			const rs = part.getDependencies();
+			if (!rs) continue;
+			for (const c of rs) results.push(c);
 		}
 		return results;
 	}
@@ -421,6 +486,15 @@ export class BooleanGeometry extends GeometryBase {
 	}
 	asReferences() {
 		return null;
+	}
+	getDependencies() {
+		let results = [];
+		for (const part of this.m_operands) {
+			const rs = part.getDependencies();
+			if (!rs) continue;
+			for (const c of rs) results.push(c);
+		}
+		return results;
 	}
 	filterTag(fn) {
 		let filtered = [];
