@@ -1,0 +1,78 @@
+$$include './meta/macros.ptl'
+
+import [CvDecompose LocalizedForm] from "@iosevka/glyph/relation"
+import [createGsubLookupFromGr] from "./gsub-gr.mjs"
+
+extern Set
+
+export : define [buildLOCL gsub para glyphStore] : begin
+	local rec : gsub.beginBlock
+
+	define { chain-rule } : gsub.ChainRuleBuilder
+
+	define cyrlSRB  : gsub.copyLanguage 'cyrl_SRB ' 'cyrl_DFLT'
+	define cyrlMKD  : gsub.copyLanguage 'cyrl_MKD ' 'cyrl_DFLT'
+	define cyrlBOS  : gsub.copyLanguage 'cyrl_BOS ' 'cyrl_DFLT'
+	define cyrlBGR  : gsub.copyLanguage 'cyrl_BGR ' 'cyrl_DFLT'
+	define latnVIT  : gsub.copyLanguage 'latn_VIT ' 'latn_DFLT'
+	define grekIPPH : gsub.copyLanguage 'grek_IPPH ' 'grek_DFLT'
+	define grekAPPH : gsub.copyLanguage 'grek_APPH ' 'grek_DFLT'
+
+	# SRB
+	define loclSRB : gsub.createFeature 'locl'
+	cyrlSRB.addFeature loclSRB
+	cyrlMKD.addFeature loclSRB
+	cyrlBOS.addFeature loclSRB
+	loclSRB.addLookup : createGsubLookupFromGr gsub glyphStore
+		if [not para.isItalic] LocalizedForm.SRB.Upright LocalizedForm.SRB.Italic
+
+	# BGR
+	define loclBGR : cyrlBGR.addFeature : gsub.createFeature 'locl'
+	loclBGR.addLookup : createGsubLookupFromGr gsub glyphStore LocalizedForm.BGR
+
+	# VIT
+	define loclVIT : latnVIT.addFeature : gsub.createFeature 'locl'
+
+	define [sx s] : lambda [t] : t.map : lambda [x] "\(x)/\(s)"
+
+	do "Decompose Vietnamese glyphs"
+
+		local decompositionSubstitutions {.}
+		loclVIT.addLookup : gsub.createLookup
+			.type 'gsub_multiple'
+			.substitutions decompositionSubstitutions
+
+		local viCircumflex 'ẦẤẨỀẾỂỒỐỔầấẩềếểồốổ'
+		local viBreve      'ẮẰẲằắẳ'
+		local viShiftableMarks { 'acuteAbove' 'graveAbove' 'hookAbove' }
+
+		foreach ch (viCircumflex + viBreve) : begin
+			local u : ch.codePointAt 0
+			local gn : glyphStore.queryNameByUnicode u
+			local g : glyphStore.queryByNameEnsured gn
+			local decomp : CvDecompose.get g
+			set decompositionSubstitutions.(gn) decomp
+
+		loclVIT.addLookup : gsub.createLookup
+			.type 'gsub_chaining'
+			.rules : list
+				chain-rule
+					{'A' 'a' 'E' 'e' 'O' 'o'} ~> nothing
+					{'circumflexAbove'}       ~> nothing
+					viShiftableMarks          ~> [sx 'viSide']
+				chain-rule
+					{'A' 'a'}                 ~> nothing
+					{'breveAbove'}            ~> nothing
+					viShiftableMarks          ~> [sx 'viCenter']
+
+	# IPPH
+	define loclIPPH : gsub.createFeature 'locl'
+	grekIPPH.addFeature loclIPPH
+	grekAPPH.addFeature loclIPPH
+	loclIPPH.addLookup : gsub.createLookup
+		.type 'gsub_single'
+		.substitutions : object
+			'grek/beta' : glyphStore.ensureExists 'latn/beta'
+			'grek/chi'  : glyphStore.ensureExists 'latn/chi'
+
+	gsub.endBlockAtFront rec
