@@ -24,7 +24,7 @@ jobs:
     - name: Install ttfautohint
       run: sudo apt install ttfautohint
         
-    - uses: pnpm/action-setup@v2
+    - uses: pnpm/action-setup@v3
       with:
         version: 8
 
