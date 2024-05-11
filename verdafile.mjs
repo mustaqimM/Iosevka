@@ -53,7 +53,7 @@ build.setJournal(`${BUILD}/.verda-build-journal`);
 build.setSelfTracking();
 
 ///////////////////////////////////////////////////////////
-//////                   Oracles                     //////
+//////                 Environment                   //////
 ///////////////////////////////////////////////////////////
 
 const Version = computed(`env::version`, async target => {
@@ -71,15 +71,39 @@ const CheckTtfAutoHintExists = oracle(`oracle:check-ttfautohint-exists`, async t
 });
 
 const Dependencies = computed("env::dependencies", async target => {
-	const [pjf] = await target.need(sfu`package.json`);
-	const pj = JSON.parse(await FS.promises.readFile(pjf.full, "utf-8"));
-	let subGoals = [];
-	for (const pkgName in pj.dependencies) {
-		subGoals.push(InstalledVersion(pkgName, pj.dependencies[pkgName]));
+	const [packageJsons] = await target.need(AllPackageJsons);
+	const subGoals = [];
+	for (const pjf of packageJsons) {
+		subGoals.push(DependenciesFor(pjf));
 	}
-	const [actual] = await target.need(subGoals);
-	return actual;
+	return await target.need(subGoals);
 });
+
+const AllPackageJsons = computed("env::all-package-jsons", async target => {
+	const [ppj, tpj] = await target.need(PackagesPackagesJsons, ToolPackagesJsons);
+	return [`package.json`, ...ppj, ...tpj];
+});
+const PackagesPackagesJsons = computed("env::packages-packages-jsons", target =>
+	FileList({ under: "packages", pattern: "*/package.json" })(target),
+);
+const ToolPackagesJsons = computed("env::tool-packages-jsons", target =>
+	FileList({ under: "tools", pattern: "*/package.json" })(target),
+);
+
+const DependenciesFor = computed.make(
+	pakcageJsonPath => `env::dependencies-for::${pakcageJsonPath}`,
+	async (target, pakcageJsonPath) => {
+		const [pjf] = await target.need(sfu(pakcageJsonPath));
+		const pj = JSON.parse(await FS.promises.readFile(pjf.full, "utf-8"));
+		let subGoals = [];
+		for (const pkgName in pj.dependencies) {
+			if (/^@iosevka/.test(pkgName)) continue;
+			subGoals.push(InstalledVersion(pkgName, pj.dependencies[pkgName]));
+		}
+		const [actual] = await target.need(subGoals);
+		return actual;
+	},
+);
 
 const InstalledVersion = computed.make(
 	(pkg, required) => `env::installed-version::${pkg}::${required}`,
@@ -254,6 +278,8 @@ const FontInfoOf = computed.group("metadata:font-info-of", async (target, fileNa
 		};
 	}
 
+	const [compositesFromBuildPlan] = await target.need(CompositesFromBuildPlan);
+
 	return {
 		name: fileName,
 		variants: bp.variants || null,
@@ -276,6 +302,8 @@ const FontInfoOf = computed.group("metadata:font-info-of", async (target, fileNa
 			slope: sfi.shapeSlope,
 			slopeAngle: sfi.shapeSlopeAngle,
 		},
+		// Naming
+		namingOverride: bp.namingOverride || null,
 		// Menu
 		menu: {
 			family: bp.family,
@@ -304,6 +332,9 @@ const FontInfoOf = computed.group("metadata:font-info-of", async (target, fileNa
 
 		// Spacing derivation -- creating faster build for spacing variants
 		spacingDerive,
+
+		// Composite variants from build plan -- used for variant resolution when building fonts
+		compositesFromBuildPlan,
 	};
 });
 
@@ -424,28 +455,31 @@ const DistUnhintedTTF = file.make(
 			// Ab-initio build
 			const cacheFileName =
 				`${Math.round(1000 * fi.shape.weight)}-${Math.round(1000 * fi.shape.width)}-` +
-				`${Math.round(3600 * fi.shape.slopeAngle)}-${fi.shape.slope}`;
+				`${Math.round(3600 * fi.shape.slopeAngle)}`;
 			const cachePath = `${SHARED_CACHE}/${cacheFileName}.mpz`;
 			const cacheDiffPath = `${charMapPath.dir}/${fn}.cache.mpz`;
 
-			const [comps] = await target.need(
-				CompositesFromBuildPlan,
-				de(charMapPath.dir),
-				de(ttfaControlsPath.dir),
-				de(SHARED_CACHE),
-			);
+			await target.need(de(charMapPath.dir), de(ttfaControlsPath.dir), de(SHARED_CACHE));
 
 			echo.action(echo.hl.command(`Create TTF`), out.full);
 			const { cacheUpdated } = await silently.node("packages/font/src/index.mjs", {
-				o: out.full,
-				...(fi.buildCharMap ? { oCharMap: charMapPath.full } : {}),
-				paramsDir: Path.resolve("params"),
-				oTtfaControls: ttfaControlsPath.full,
-				cacheFreshAgeKey: ageKey,
-				iCache: cachePath,
-				oCache: cacheDiffPath,
-				compositesFromBuildPlan: comps,
+				// INPUT: font info
 				...fi,
+				// INPUT: path to parameters
+				paramsDir: Path.resolve("params"),
+				// TTF output. Optional.
+				o: out.full,
+				// Charmap output. Optional.
+				...(fi.buildCharMap ? { oCharMap: charMapPath.full } : {}),
+				// TTFAutohint controls output. Optional.
+				oTtfaControls: ttfaControlsPath.full,
+
+				// Geometry cache parameters. Optional.
+				cache: {
+					input: cachePath,
+					output: cacheDiffPath,
+					freshAgeKey: ageKey,
+				},
 			});
 
 			if (cacheUpdated) {
@@ -535,8 +569,8 @@ const BuildNoGcTtf = task.make(
 			const [noGc] = await target.need(BuildNoGcTtfImpl(gr, fn));
 			return noGc;
 		} else {
-			const [distUnhinted] = await target.need(DistHintedTTF(gr, fn));
-			return distUnhinted;
+			const [distHinted] = await target.need(DistHintedTTF(gr, fn));
+			return distHinted;
 		}
 	},
 );
@@ -659,29 +693,33 @@ const CollectPlans = computed(`metadata:collect-plans`, async target => {
 	return await getCollectPlans(target, rawPlans.collectPlans);
 });
 
+const SGR_PREFIX_PREFIX = "SGr-";
+
 // eslint-disable-next-line complexity
 async function getCollectPlans(target, rawCollectPlans) {
 	const plans = {};
 
 	let allCollectableGroups = new Set();
+
 	for (const collectPrefix in rawCollectPlans) {
 		const collect = rawCollectPlans[collectPrefix];
-		if (!collect.release) continue;
-		for (const gr of collect.from) allCollectableGroups.add(gr);
-	}
 
-	const amendedRawCollectPlans = { ...rawCollectPlans };
-	out: for (const gr of allCollectableGroups) {
-		for (const [k, cp] of Object.entries(rawCollectPlans)) {
-			if (cp.from.length === 1 && cp.from[0] === gr) continue out;
+		const glyfTtcComposition = {}; // Collect plan for glyf-sharing TTCs
+		const ttcComposition = {}; // Collect plan for master TTCs
+		const singleGroupTtcInfos = {}; // single-group TTCs
+
+		const shouldProduceSgr = collect.release && collect.from.length > 1;
+
+		if (shouldProduceSgr) {
+			for (const prefix of collect.from) {
+				const sgrPrefix = SGR_PREFIX_PREFIX + prefix;
+				if (allCollectableGroups.has(sgrPrefix))
+					throw new Error(`Group ${sgrPrefix} is already in another release plan.`);
+				allCollectableGroups.add(sgrPrefix);
+				singleGroupTtcInfos[sgrPrefix] = { from: prefix, comp: {} };
+			}
 		}
-		amendedRawCollectPlans[`SGr-` + gr] = { release: true, isAmended: true, from: [gr] };
-	}
 
-	for (const collectPrefix in amendedRawCollectPlans) {
-		const glyfTtcComposition = {};
-		const ttcComposition = {};
-		const collect = amendedRawCollectPlans[collectPrefix];
 		if (!collect || !collect.from || !collect.from.length) continue;
 
 		for (const prefix of collect.from) {
@@ -701,12 +739,21 @@ async function getCollectPlans(target, rawCollectPlans) {
 				const ttcFileName = fnStandardTtc(false, collectPrefix, suffixMap, sfi);
 				if (!ttcComposition[ttcFileName]) ttcComposition[ttcFileName] = [];
 				ttcComposition[ttcFileName].push(glyfTtcFileName);
+
+				if (shouldProduceSgr) {
+					const sgrPrefix = SGR_PREFIX_PREFIX + prefix;
+					const sgrTtcFileName = fnStandardTtc(false, sgrPrefix, suffixMap, sfi);
+					const sgrInfo = singleGroupTtcInfos[sgrPrefix];
+					if (!sgrInfo.comp[sgrTtcFileName]) sgrInfo.comp[sgrTtcFileName] = [];
+					sgrInfo.comp[sgrTtcFileName].push(ttfTargetName);
+				}
 			}
 		}
 		plans[collectPrefix] = {
 			glyfTtcComposition,
 			ttcComposition,
 			groupDecomposition: [...collect.from],
+			singleGroupTtcInfos,
 			inRelease: !!collect.release,
 			isAmended: !!collect.isAmended,
 		};
@@ -771,6 +818,34 @@ const CollectedTtcFile = file.make(
 		await buildCompositeTtc(out, inputs);
 	},
 );
+
+const SGrTtcFile = file.make(
+	(cgr, sgr, f) => `${DIST_TTC}/${sgr}/${f}.ttc`,
+	async (target, out, cgr, sgr, f) => {
+		const [cp] = await target.need(CollectPlans, de`${out.dir}`);
+		const sgrInfo = cp[cgr].singleGroupTtcInfos[sgr];
+		const parts = Array.from(new Set(sgrInfo.comp[f] || []));
+		const [inputs] = await target.need(parts.map(pt => DistHintedTTF(sgrInfo.from, pt)));
+		await buildCompositeTtc(out, inputs);
+	},
+);
+const SGrSuperTtcFile = file.make(
+	(cgr, sgr) => `${DIST_SUPER_TTC}/${sgr}.ttc`,
+	async (target, out, cgr, sgr) => {
+		const [cp] = await target.need(CollectPlans, de`${out.dir}`);
+		const sgrInfo = cp[cgr].singleGroupTtcInfos[sgr];
+		const parts = Array.from(Object.keys(sgrInfo.comp));
+		const [inputs] = await target.need(parts.map(pt => SGrTtcFile(cgr, sgr, pt)));
+		await buildCompositeTtc(out, inputs);
+	},
+);
+async function buildCompositeTtc(out, inputs) {
+	const inputPaths = inputs.map(f => f.full);
+	echo.action(echo.hl.command(`Create TTC`), out.full, echo.hl.operator("<-"), inputPaths);
+	await absolutelySilently.run(MAKE_TTC, ["-o", out.full], inputPaths);
+}
+
+// TTC for glyph sharing
 const GlyfTtc = file.make(
 	(cgr, f) => `${GLYF_TTC}/${cgr}/${f}.ttc`,
 	async (target, out, cgr, f) => {
@@ -779,13 +854,6 @@ const GlyfTtc = file.make(
 		await buildGlyphSharingTtc(target, parts, out);
 	},
 );
-
-async function buildCompositeTtc(out, inputs) {
-	const inputPaths = inputs.map(f => f.full);
-	echo.action(echo.hl.command(`Create TTC`), out.full, echo.hl.operator("<-"), inputPaths);
-	await absolutelySilently.run(MAKE_TTC, ["-o", out.full], inputPaths);
-}
-
 async function buildGlyphSharingTtc(target, parts, out) {
 	await target.need(de`${out.dir}`);
 	const [ttfInputs] = await target.need(parts.map(part => BuildNoGcTtf(part.dir, part.file)));
@@ -813,6 +881,22 @@ const SuperTtcZip = file.make(
 	async (target, out, cgr) => {
 		await target.need(de`${out.dir}`, CollectedSuperTtcFile(cgr));
 		await CreateGroupArchiveFile(DIST_SUPER_TTC, out, `${cgr}.ttc`);
+	},
+);
+const SgrTtcZip = file.make(
+	(cgr, sgr, version) => `${ARCHIVE_DIR}/PkgTTC-${sgr}-${version}.zip`,
+	async (target, out, cgr, sgr) => {
+		const [cPlan] = await target.need(CollectPlans, de`${out.dir}`);
+		const ttcFiles = Array.from(Object.keys(cPlan[cgr].singleGroupTtcInfos[sgr].comp));
+		await target.need(ttcFiles.map(pt => SGrTtcFile(cgr, sgr, pt)));
+		await CreateGroupArchiveFile(`${DIST_TTC}/${sgr}`, out, `*.ttc`);
+	},
+);
+const SgrSuperTtcZip = file.make(
+	(cgr, sgr, version) => `${ARCHIVE_DIR}/SuperTTC-${sgr}-${version}.zip`,
+	async (target, out, cgr, sgr) => {
+		await target.need(de`${out.dir}`, SGrSuperTtcFile(cgr, sgr));
+		await CreateGroupArchiveFile(DIST_SUPER_TTC, out, `${sgr}.ttc`);
 	},
 );
 
@@ -905,6 +989,16 @@ const PagesDataExport = task(`pages:data-export`, async t => {
 		exportPathMeta: Path.resolve(pagesDir, "shared/data-import/raw/metadata.json"),
 		exportPathCov: Path.resolve(pagesDir, "shared/data-import/raw/coverage.json"),
 	});
+
+	// Update packages.json version
+	const packageJson = JSON.parse(
+		await FS.promises.readFile(Path.resolve(pagesDir, "package.json"), "utf-8"),
+	);
+	packageJson.version = version;
+	await FS.promises.writeFile(
+		Path.resolve(pagesDir, "package.json"),
+		JSON.stringify(packageJson, null, "  "),
+	);
 });
 
 const PagesFontExport = task.group(`pages:font-export`, async (target, gr) => {
@@ -1116,11 +1210,15 @@ const CleanDist = task(`clean-dist`, async () => {
 });
 
 const Release = task(`release`, async target => {
-	await target.need(ReleaseArchives, SampleImages, Pages, AmendReadme, ReleaseNotes, ChangeLog);
+	await target.need(ReleaseAncillary);
+	await target.need(ReleaseArchives);
 });
 
+const ReleaseAncillary = task(`release:ancillary`, async target => {
+	await target.need(SampleImages, Pages, AmendReadme, ReleaseNotes, ChangeLog);
+});
 const ReleaseArchives = task(`release:archives`, async target => {
-	const [collectPlans] = await target.need(Version, CollectPlans, UtilScriptFiles);
+	const [collectPlans] = await target.need(CollectPlans, UtilScriptFiles);
 
 	let goals = [];
 	for (const [cgr, plan] of Object.entries(collectPlans)) {
@@ -1137,8 +1235,14 @@ const ReleaseArchivesFor = task.group(`release:archives-for`, async (target, cgr
 	if (!plan || !plan.inRelease) throw new Error(`CollectGroup ${cgr} is not in release.`);
 
 	let goals = [];
+
 	goals.push(TtcZip(cgr, version));
 	goals.push(SuperTtcZip(cgr, version));
+	for (const sgr in plan.singleGroupTtcInfos) {
+		goals.push(SgrTtcZip(cgr, sgr, version));
+		goals.push(SgrSuperTtcZip(cgr, sgr, version));
+	}
+
 	const subGroups = collectPlans[cgr].groupDecomposition;
 	for (const gr of subGroups) {
 		goals.push(GroupTtfZip(gr, version, false));
@@ -1262,22 +1366,48 @@ function resolveWws(bpName, buildPlans, defaultConfig) {
 function resolveWwsAspect(aspectName, bpName, buildPlans, defaultConfig, deps) {
 	const bp = buildPlans[bpName];
 	if (!bp) fail(`Build plan ${bpName} not found.`);
+	if (deps.includes(bp)) {
+		fail(`Circular dependency detected when resolving ${aspectName} of ${bp.family}.`);
+	}
+	const updatedDeps = [...deps, bpName];
 
 	if (bp[aspectName]) {
-		return shimBpAspect(aspectName, bp[aspectName], defaultConfig[aspectName]);
+		const aspect = bp[aspectName];
+		if (typeof aspect.inherits == "string") {
+			if (aspect.inherits === "default") {
+				return defaultConfig[aspectName];
+			} else {
+				// Make sure it start with `buildPlans.`
+				if (!aspect.inherits.startsWith("buildPlans.")) {
+					fail(
+						`Invalid \`inherits\`2 value for ${aspectName} in ${bpName}. ` +
+							`It must be \`default\` or start with \`buildPlans.\`.`,
+					);
+				}
+				const inheritedPlanName = aspect.inherits.slice("buildPlans.".length);
+				return resolveWwsAspect(
+					aspectName,
+					inheritedPlanName,
+					buildPlans,
+					defaultConfig,
+					updatedDeps,
+				);
+			}
+		} else {
+			return shimBpAspect(aspectName, bp[aspectName], defaultConfig[aspectName]);
+		}
 	} else if (bp[`${aspectName}-inherits`]) {
+		echo.warn(
+			`The ${aspectName}-inherits syntax is deprecated. ` +
+				`Use the new syntax \`${aspectName}.inherits = "buildPlans.<plan name>\` instead.`,
+		);
 		const inheritedPlanName = bp[`${aspectName}-inherits`];
-		const inheritedPlan = buildPlans[inheritedPlanName];
-		if (deps.includes(inheritedPlan))
-			fail(`Circular dependency detected when resolving ${aspectName} of ${bp.family}.`);
-
-		const updatedDes = [...deps, bpName];
 		return resolveWwsAspect(
 			aspectName,
 			inheritedPlanName,
 			buildPlans,
 			defaultConfig,
-			updatedDes,
+			updatedDeps,
 		);
 	} else {
 		return defaultConfig[aspectName];
@@ -1294,11 +1424,18 @@ function shimBpAspect(aspectName, aspect, defaultAspect) {
 }
 function shimBpAspectKey(aspectName, sink, k, v, defaultAspect) {
 	if (typeof v === "string") {
-		if (!/^default\./.test(v))
-			throw new Error(`Invalid configuration '${v}' for ${aspectName}.${k}'`);
+		if (!v.startsWith("default."))
+			throw new Error(
+				`Invalid configuration '${v}' for ${aspectName}.${k}'. ` +
+					`It must start with 'default.'`,
+			);
 		const remappingKey = v.slice("default.".length);
 		if (!defaultAspect[remappingKey])
-			throw new Error(`Invalid configuration '${v}' for ${aspectName}.${k}'`);
+			throw new Error(
+				`Invalid configuration '${v}' for ${aspectName}.${k}'. ` +
+					`The default aspect doesn't have a key '${remappingKey}'.`,
+			);
+
 		sink[k] = defaultAspect[remappingKey];
 	} else {
 		sink[k] = v;

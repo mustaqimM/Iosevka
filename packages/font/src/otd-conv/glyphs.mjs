@@ -1,5 +1,6 @@
 import * as Geom from "@iosevka/geometry";
 import { Point } from "@iosevka/geometry/point";
+import { Glyph } from "@iosevka/glyph";
 import * as Gr from "@iosevka/glyph/relation";
 import { Ot } from "ot-builder";
 
@@ -57,6 +58,13 @@ class MappedGlyphStore {
 		if (!name) return undefined;
 		return this.m_nameMapping.get(name);
 	}
+
+	// Add directly from Ot.Glyphs
+	addOtGlyph(name, g) {
+		this.m_nameMapping.set(name, g);
+		this.m_mapping.set(new Glyph(name), g);
+	}
+
 	decideOrder() {
 		const gs = Ot.ListGlyphStoreFactory.createStoreFromList([...this.m_mapping.values()]);
 		return gs.decideOrder();
@@ -145,7 +153,7 @@ class MappedGlyphStore {
 		const gl = new Ot.Glyph.GeometryList();
 		for (const ref of rs) {
 			const target = this.queryBySourceGlyph(ref.glyph);
-			if (!target) throw new Error("Unreachable");
+			if (!target) throw new Error("Unreachable: glyph not found");
 			const tfm = Ot.Glyph.Transform2X3.Translate(ref.x, ref.y);
 			gl.items.push(new Ot.Glyph.TtReference(target, tfm));
 		}

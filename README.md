@@ -11,9 +11,9 @@
 ### Installing from GitHub Releases
 
 1. Download your font package from [releases](https://github.com/be5invis/Iosevka/releases).
-  * For Linux users you could use the following command to download all the packages in the latest release:
+  * For Linux users you could use the following command to download all the TTC packages in the latest release:
     ```bash
-    curl -s 'https://api.github.com/repos/be5invis/Iosevka/releases/latest' | jq -r ".assets[] | .browser_download_url" | grep ttf-iosevka | xargs -n 1 curl -L -O --fail --silent --show-error
+    curl -s 'https://api.github.com/repos/be5invis/Iosevka/releases/latest' | jq -r ".assets[] | .browser_download_url" | grep PkgTTC-Iosevka | xargs -n 1 curl -L -O --fail --silent --show-error
     ```
 2. Quit all your editors / programs.
 3. Unarchive the font package and you will see the font files.
@@ -37,7 +37,7 @@
     * Customizable install using Homebrew: see [robertgzr/homebrew-tap](https://github.com/robertgzr/homebrew-tap).
   * **Linux**
     * Arch Linux: Install one of the [ttc-iosevka packages](https://archlinux.org/packages/?q=ttc-iosevka).
-    * Ubuntu Linux: Install one of the [fonts-iosevka packages](http://phd-sid.ethz.ch/debian/fonts-iosevka/).
+    * Ubuntu Linux: Install one of the [fonts-iosevka packages](http://sid.ethz.ch/debian/fonts-iosevka/).
     * Void Linux: Install the font with `xbps-install font-iosevka`.
     * Fedora: Install the font(s) from [the COPR here](https://copr.fedorainfracloud.org/coprs/peterwu/iosevka/). Run `dnf search iosevka` to discover available fonts and `dnf install` to install the chosen one(s).
   * **FreeBSD**: The font can be installed with `pkg install iosevka`.
