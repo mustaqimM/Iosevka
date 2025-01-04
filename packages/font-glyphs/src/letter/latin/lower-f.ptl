@@ -13,7 +13,7 @@ glyph-block Letter-Latin-Lower-F : begin
 	glyph-block-import Letter-Shared-Shapes : LetterBarOverlay PalatalHook
 
 	define [SetPalatalHookPos barLeft] : glyph-proc
-		set-base-anchor 'palatalHookPos' (barLeft + (Stroke + [Math.max VJutStroke (Width / 12)]) * HVContrast) 0
+		set-base-anchor 'palatalHookPos' (barLeft + [HSwToV : Stroke + [Math.max VJutStroke (Width / 12)]]) 0
 
 	glyph-block-export fbar
 	define fbar : XH * DesignParameters.fBarPosToXH + Stroke * DesignParameters.fbarStrokeAdj
@@ -30,7 +30,7 @@ glyph-block Letter-Latin-Lower-F : begin
 	define [StdFShapeT sink df offset barleft sw] : sink
 		widths.lhs sw
 		g4 [Math.max (barleft + offset + [HSwToV : 2.125 * sw]) (df.rightSB + RBalance2 - (OX - O) - offset)] (Ascender - Hook * 0.75)
-		hookstart (Ascender - O - offset) (sw -- sw)
+		hookstart (Ascender - offset) (sw -- sw)
 		flat (barleft + offset) (Ascender - ArchDepthA * 0.8)
 		[if offset corner curl] (barleft + offset) 0 [heading Downward]
 		if offset {[corner (df.rightSB + RBalance2 - (OX - O) - offset) 0]} {}
@@ -42,7 +42,7 @@ glyph-block Letter-Latin-Lower-F : begin
 		return : dispiro
 			widths.lhs
 			flat counterHookLeft Descender
-			curl [Math.max (barRight - hd.x) (counterHookLeft + 0.1)] Descender
+			curl [Math.max (barRight - hd.x) (counterHookLeft + TINY)] Descender
 			archv.superness DesignParameters.tightHookSuperness
 			flat barRight [Math.min 0 (Descender + hd.y)]
 			curl barRight 0.1 [heading Upward]
@@ -55,7 +55,7 @@ glyph-block Letter-Latin-Lower-F : begin
 			DiagTail.L xBarMiddle Descender [DiagTail.StdDepth df Stroke] Stroke
 
 	glyph-block-export StdSmallFBarLeftPos
-	define [StdSmallFBarLeftPos barAtCenter] : [mix SB RightSB : if barAtCenter 0.45 0.35] - Stroke * [if barAtCenter 0.45 0.25] * HVContrast
+	define [StdSmallFBarLeftPos barAtCenter] : [mix SB RightSB : if barAtCenter 0.45 0.35] - [HSwToV : Stroke * [if barAtCenter 0.45 0.25]]
 
 	glyph-block-export StdSmallFBarLeftPos0
 	define [StdSmallFBarLeftPos0] : [mix SB RightSB 0.35] - [HSwToV : 0.25 * Stroke]
@@ -111,7 +111,7 @@ glyph-block Letter-Latin-Lower-F : begin
 		include : dispiro
 			widths.lhs
 			flat (crossRight + topHookExt) Ascender
-			curl [Math.min (barLeft + hd.x * (1 + topHookHdExt)) (crossRight - 0.1)] Ascender
+			curl [Math.min (barLeft + hd.x * (1 + topHookHdExt)) (crossRight - TINY)] Ascender
 			archv.superness DesignParameters.tightHookSuperness
 			flat barLeft [Math.max XH (Ascender - hd.y)]
 			curl barLeft 0 [heading Downward]

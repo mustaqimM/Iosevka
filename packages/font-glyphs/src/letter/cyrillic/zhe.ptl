@@ -14,21 +14,25 @@ glyph-block Letter-Cyrillic-Zhe : begin
 		define [ZheSw df]  : AdviceStroke 3.3 df.div
 		define [ZheSw2 df] : AdviceStroke 4.0 df.div
 		define [ZheSw3 df] : AdviceStroke 3.7 df.div
-		define [Overshoot fSlab df] : if fSlab 0 (O * 3 * df.div)
+		define [Overshoot fSlab df] : if fSlab 0 : O * 3 * df.div
 
-		define [CenterBar fSlab df bot midTop] : glyph-proc
-			include : VBar.m df.middle bot midTop [ZheSw df]
-			if (fSlab && !para.isItalic && (df.width > 7 * para.refJut)) : begin
-				include : HSerif.mb df.middle bot    Jut
-				include : HSerif.mt df.middle midTop Jut
+		define [CenterBar fSlab df bot top midTop] : glyph-proc
+			define fine : ZheSw df
+			include : VBar.m df.middle bot midTop fine
+			if fSlab : begin
+				local fBGR : midTop > top
+				if (!para.isItalic && (df.width > 7 * para.refJut)) : begin
+					include : HSerif.mb df.middle bot Jut
+					if (!fBGR) : include : HSerif.mt df.middle midTop Jut
+				if fBGR : include : HSerif.lt (df.middle - [HSwToV : 0.5 * fine]) midTop SideJut
 
 		define [LegSerifs fSlab fHalf df bot top] : glyph-proc
 			define fine : ZheSw df
 			define fineK 0.1
 			if fSlab : begin
 				if (!fHalf) : begin
-					include : HSerif.lt (df.leftSB  + fine * fineK) top SideJut fine
-					include : HSerif.lb (df.leftSB  + fine * fineK) bot SideJut fine
+					include : HSerif.lt (df.leftSB + fine * fineK) top SideJut fine
+					include : HSerif.lb (df.leftSB + fine * fineK) bot SideJut fine
 				include : HSerif.rt (df.rightSB - fine * fineK) top SideJut fine
 				include : HSerif.rb (df.rightSB - fine * fineK) bot SideJut fine
 
@@ -36,7 +40,7 @@ glyph-block Letter-Cyrillic-Zhe : begin
 			define sw : ZheSw df
 			define fineK 0.1
 			return : CyrDescender.rSideJut
-				x       -- df.rightSB - fineK * sw - [Overshoot fSlab df]
+				x       -- (df.rightSB - fineK * sw - [Overshoot fSlab df])
 				y       -- 0
 				refSw   -- sw
 				sideJut -- SideJut
@@ -50,10 +54,10 @@ glyph-block Letter-Cyrillic-Zhe : begin
 			define attach2Y : [mix bot top 0.72] + fine
 
 			define [mask] : spiro-outline
-				corner (df.leftSB  + overshoot + 0.1)    top
-				corner attach1X              (attach1Y + 0.1)
-				corner (df.width - attach1X) (attach1Y + 0.1)
-				corner (df.rightSB - overshoot - 0.1)    top
+				corner (df.leftSB  + overshoot + TINY)    top
+				corner attach1X              (attach1Y + TINY)
+				corner (df.width - attach1X) (attach1Y + TINY)
+				corner (df.rightSB - overshoot - TINY)    top
 
 			local rightHalf : union
 				intersection [MaskRight df.middle]
@@ -76,7 +80,7 @@ glyph-block Letter-Cyrillic-Zhe : begin
 		export : define [CurlyLegs fSlab fHalf df bot top] : begin
 			define fine : ZheSw df
 			define fine2 : ZheSw3 df
-			define overshoot : if fSlab 0 (2 * O * df.div)
+			define overshoot : if fSlab 0 : 2 * O * df.div
 
 			define attach1X : df.middle - [HSwToV : 0.5 * fine]
 			define attach1Y : mix bot top : if fSlab 0.325 0.375
@@ -96,9 +100,9 @@ glyph-block Letter-Cyrillic-Zhe : begin
 						lowerCurvature
 						g4 (df.width - attach1X) attach2Y [widths.center fine2]
 					intersection [MaskRight df.middle] : spiro-outline
-						corner.down.start (df.rightSB - overshoot - 0.1) top
+						corner.down.start (df.rightSB - overshoot - TINY) top
 						lowerCurvature
-						corner (df.width - attach1X) (attach1Y + 0.1)
+						corner (df.width - attach1X) (attach1Y + TINY)
 						corner df.middle top
 
 			local leftHalf : union
@@ -112,9 +116,9 @@ glyph-block Letter-Cyrillic-Zhe : begin
 						lowerCurvature
 						g4 attach1X attach2Y [widths.center fine2]
 					intersection [MaskLeft df.middle] : spiro-outline
-						corner.down.start (df.leftSB  + overshoot + 0.1) top
+						corner.down.start (df.leftSB  + overshoot + TINY) top
 						lowerCurvature
-						corner attach1X (attach1Y + 0.1)
+						corner attach1X (attach1Y + TINY)
 						corner df.middle top
 
 			local fullShape : if fHalf rightHalf : union rightHalf leftHalf
@@ -167,12 +171,12 @@ glyph-block Letter-Cyrillic-Zhe : begin
 			return : union fullShape : HBar.m [if fHalf df.middle (midX + 0.5 * fine)] (df.width - (midX + 0.5 * fine)) midY fine
 
 		export : define [Shape Legs fSlab fMidSlab df bot top midTop] : glyph-proc
-			include : CenterBar fMidSlab    df bot midTop
+			include : CenterBar fMidSlab    df bot top midTop
 			include : Legs      fSlab false df bot top
 			include : LegSerifs fSlab false df bot top
 
 		export : define [HalfShape Legs fSlab fMidSlab df bot top midTop] : glyph-proc
-			include : CenterBar fMidSlab   df bot midTop
+			include : CenterBar fMidSlab   df bot top midTop
 			include : Legs      fSlab true df bot top
 			include : LegSerifs fSlab true df bot top
 

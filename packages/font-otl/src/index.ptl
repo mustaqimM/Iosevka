@@ -25,8 +25,9 @@ define [buildGSUB para glyphStore markGlyphs] : begin
 
 	# NWID / WWID
 	if para.enableNwidWwid : begin
-		buildGrFeature gsub glyphStore Gr.Nwid [if para.isQuasiProportional Gr.IsCompositeOrLigature null]
-		buildGrFeature gsub glyphStore Gr.Wwid [if para.isQuasiProportional Gr.IsCompositeOrLigature null]
+		local grIgnore : if para.isQuasiProportional Gr.IsCompositeOrLigature null
+		buildGrFeature gsub glyphStore Gr.Nwid grIgnore
+		buildGrFeature gsub glyphStore Gr.Wwid grIgnore
 
 	# lnum / onum
 	buildGrFeature gsub glyphStore Gr.Lnum
@@ -49,11 +50,7 @@ define [buildGSUB para glyphStore markGlyphs] : begin
 	local ccmp : buildCCMP gsub glyphStore markGlyphs
 
 	# Ligation
-	if para.enableLigation : do
-		define plm : Object.assign {.} para.ligation.defaultBuildup
-		if (para.ligation.caltBuildup && para.ligation.caltBuildup.length) : begin
-			set plm.calt para.ligation.caltBuildup
-		buildLigations gsub para plm
+	if para.enableLigation : buildLigations gsub para para.ligationBuildups
 
 	# frac
 	buildFrac gsub glyphStore
@@ -74,7 +71,7 @@ define [buildGSUB para glyphStore markGlyphs] : begin
 
 	# TXTR, "texture" feature
 	if (para.buildTextureFeature && !para.isQuasiProportional) : begin
-		 buildGsubTexture gsub glyphStore markGlyphs cvs
+		buildGsubTexture gsub glyphStore markGlyphs cvs
 
 	gsub.finalize
 	return gsub
@@ -111,6 +108,11 @@ define [buildGDEF para glyphStore markGlyphs] : begin
 	return GDEF
 
 export : define [buildOtl para glyphStore] : begin
+	# Link glyph pairs by suffix
+	Gr.linkSuffixPairGr glyphStore 'NWID' 'WWID' Gr.Nwid Gr.Wwid
+	Gr.linkSuffixPairGr glyphStore 'lnum' 'onum' Gr.Lnum Gr.Onum
+	Gr.linkSuffixGr     glyphStore 'aplForm'     Gr.AplForm
+
 	local markGlyphs { .all [new Set] .markAttachClassDef [new Map] .markGlyphSets {} }
 	local GPOS : buildGPOS para glyphStore markGlyphs
 	local GDEF : buildGDEF para glyphStore markGlyphs

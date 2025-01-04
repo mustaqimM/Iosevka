@@ -4,16 +4,6 @@ import * as TypoGeom from "typo-geom";
 import { Point, Vec2 } from "./point.mjs";
 import { Transform } from "./transform.mjs";
 
-function contourToRep(contour) {
-	let c = [];
-	for (const z of contour) c.push({ type: z.type, x: z.x, y: z.y });
-	return c;
-}
-function repToContour(contourRep) {
-	let c = [];
-	for (const z of contourRep) c.push(Point.fromXY(z.type, z.x, z.y));
-	return c;
-}
 function convertContourToArcs(contour) {
 	if (!contour || !contour.length) return [];
 	const newContour = [];
@@ -41,12 +31,12 @@ function convertContourToArcs(contour) {
 				const zc = z;
 				let zf = contour[(j + 1) % contour.length];
 				const zfIsCorner = zf.type === Point.Type.contour;
-				if (!zfIsCorner) zf = Point.from(Point.Type.Corner, zc).mix(0.5, zf);
+				if (!zfIsCorner) zf = Point.from(Point.Type.Corner, zc).mix(zf, 0.5);
 				newContour.push(
 					new TypoGeom.Arcs.Bez3(
 						z0,
-						Point.from(Point.Type.CubicStart, z0).mix(2 / 3, zc),
-						Point.from(Point.Type.CubicEnd, zf).mix(2 / 3, zc),
+						Point.from(Point.Type.CubicStart, z0).mix(zc, 2 / 3),
+						Point.from(Point.Type.CubicEnd, zf).mix(zc, 2 / 3),
 						Point.from(Point.Type.Corner, zf),
 					),
 				);
@@ -114,12 +104,6 @@ export class OffsetCurve {
 
 export function convertShapeToArcs(shape) {
 	return shape.map(convertContourToArcs);
-}
-export function shapeToRep(shape) {
-	return shape.map(contourToRep);
-}
-export function repToShape(shapeRep) {
-	return shapeRep.map(repToContour);
 }
 
 export class BezToContoursSink {

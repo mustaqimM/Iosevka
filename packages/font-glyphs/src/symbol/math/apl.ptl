@@ -29,7 +29,7 @@ glyph-block Symbol-Math-APL : begin
 		define background : new-glyph : glyph-proc : include fnBackground AS_BASE ALSO_METRICS
 
 		local corners : new-glyph : glyph-proc
-			set this.gizmo : Translate 0 0
+			set currentGlyph.gizmo : Translate 0 0
 			foreach [c : items-of : overlay.geometry.toContours] : foreach [z : items-of c] : do
 				if (z.type === Point.Type.Corner) : begin
 					define x z.x
@@ -70,9 +70,9 @@ glyph-block Symbol-Math-APL : begin
 	create-glyph 'apl/iBar' 0x2336 : glyph-proc
 		local l [mix 0 SB (1 / 3)]
 		local r [mix Width RightSB (1 / 3)]
-		include : HBar.t l r OperTop OperatorStroke
-		include : HBar.b l r OperBot OperatorStroke
-		include : VBar.m Middle OperTop OperBot OperatorStroke
+		include : HBar.t l r TackTop OperatorStroke
+		include : HBar.b l r TackBot OperatorStroke
+		include : VBar.m Middle TackTop TackBot OperatorStroke
 
 	create-glyph 'apl/squish' 0x2337 : glyph-proc
 		local l : mix SB RightSB (1 / 8)
@@ -87,13 +87,11 @@ glyph-block Symbol-Math-APL : begin
 		local shift : OperTop - 2 * ArchDepth - OperBot
 		local fine : CThin * [AdviceStroke 4]
 		local [InnerCircleMask sw] : spiro-outline
-			corner (SB + HVContrast * (Stroke - fine)) (OperTop + shift)
-			curl   (SB + HVContrast * (Stroke - fine)) (OperBot + ArchDepthB + shift)
-			arcvh
-			g4     (Middle + CorrectionOMidX * OperatorStroke) (OperBot + (OperatorStroke - sw) + shift + O)
-			archv
-			flat   (RightSB - HVContrast * (Stroke - fine)) (OperBot + ArchDepthA + shift)
-			corner (RightSB - HVContrast * (Stroke - fine)) (OperTop + shift)
+			corner (SB + [HSwToV (Stroke - fine)]) (OperTop + shift)
+			curl   (SB + [HSwToV (Stroke - fine)]) (OperBot + ArchDepthB + shift)
+			arch.lhs (OperBot + (OperatorStroke - sw) + shift) (sw -- OperatorStroke)
+			flat   (RightSB - [HSwToV (Stroke - fine)]) (OperBot + ArchDepthA + shift)
+			corner (RightSB - [HSwToV (Stroke - fine)]) (OperTop + shift)
 		include : union
 			composite-proc
 				UShape [DivFrame 1] OperTop OperBot (stroke -- OperatorStroke)
@@ -112,8 +110,8 @@ glyph-block Symbol-Math-APL : begin
 	create-glyph 'apl/minus' : glyph-proc
 		include : dispiro
 			widths.center aplBoxSW
-			flat RightSB  [mix OperTop OperBot 0.5]
-			curl SB       [mix OperTop OperBot 0.5]
+			flat RightSB  SymbolMid
+			curl SB       SymbolMid
 
 	create-glyph 'apl/backSlash' : glyph-proc
 		include : dispiro
@@ -276,9 +274,12 @@ glyph-block Symbol-Math-APL : begin
 	LinkAplFormForNwidWwid 'whiteTriangleUp'
 	LinkAplFormForNwidWwid 'whiteTriangleDown'
 	LinkAplFormForNwidWwid 'whiteTriangleRB'
+	LinkAplFormForNwidWwid 'whiteTriangleRT'
 	LinkAplFormForNwidWwid 'arrowDownRight'
 	LinkAplFormForNwidWwid 'barArrowUp'
 	LinkAplFormForNwidWwid 'barArrowDown'
+	LinkAplFormForNwidWwid 'counterArrowLeft'
+	LinkAplFormForNwidWwid 'counterArrowRight'
 	LinkAplFormForNwidWwid 'cwOpenCircleArrow'
 	LinkAplFormForNwidWwid 'dashArrowUp'
 	LinkAplFormForNwidWwid 'dottedCircle'
@@ -291,9 +292,11 @@ glyph-block Symbol-Math-APL : begin
 	LinkAplFormForNwidWwid 'vBarSquare'
 	LinkAplFormForNwidWwid 'zigZagArrow'
 	LinkAplFormForNwidWwid 'uni21CC'
+	LinkAplFormForNwidWwid 'uni2335'
+	LinkAplFormForNwidWwid 'uni238B'
+	LinkAplFormForNwidWwid 'uni25E0'
+	LinkAplFormForNwidWwid 'uni25E1'
 	LinkAplFormForNwidWwid 'uni25F0'
 	LinkAplFormForNwidWwid 'uni25F3'
 	LinkAplFormForNwidWwid 'uni25F4'
-	LinkAplFormForNwidWwid 'uni2335'
-	LinkAplFormForNwidWwid 'uni238B'
 	LinkAplFormForNwidWwid 'uni2682'

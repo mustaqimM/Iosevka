@@ -1,199 +1,186 @@
-import * as Format from "@iosevka/util/formatter";
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
-
-export class BiKnotCollector {
-	constructor(contrast) {
-		this.contrast = contrast; // stroke contrast
-		this.defaultD1 = 0; // default LHS
-		this.defaultD2 = 0; // default RHS sw
-		this.lastKnot = null; // last knot in the processed items
-
-		this.controls = []; // all the control items
-		this.closed = false; // whether the shape is closed
-		this.needsUnwrap = false; // whether there are interpolators
-		this.afterPreFunction = false; // whether we are really processing knots
+// This class is used to "flatten" the spiro controls into a plain list of UserControlKnot
+export class SpiroFlattener {
+	constructor() {
+		this.preControls = [];
+		this.controls = [];
+		this.postControls = [];
 	}
+
 	add(c) {
-		if (c instanceof Function) {
-			if (this.afterPreFunction) throw new Error("Invalid spiro control sequence");
-			c.call(this);
-		} else if (Array.isArray(c)) {
+		if (Array.isArray(c)) {
 			for (const item of c) this.add(item);
-		} else if (c instanceof UserControlKnot) {
-			this.afterPreFunction = true;
-			this.pushKnot(c);
+		} else if (c instanceof AfBase) {
+			if (this.controls.length) {
+				throw new Error(
+					"Invalid spiro control sequence: pre-control functions must be added first",
+				);
+			}
+			this.preControls.push(c);
 		} else if (c instanceof TerminateInstruction) {
-			this.afterPreFunction = true;
-			if (c.type === "close") this.closed = true;
-			c.applyTo(this);
-		} else if (c instanceof InterpolatorBase) {
-			this.afterPreFunction = true;
-			this.controls.push(c);
-			this.needsUnwrap = true;
+			this.postControls.push(c);
 		} else {
-			throw new Error("Invalid spiro control type " + String(c));
+			if (this.postControls.length) {
+				throw new Error(
+					"Invalid spiro control sequence: post-control functions must be added last",
+				);
+			}
+			this.controls.push(c);
 		}
 	}
-	unwrap() {
-		while (this.needsUnwrap) {
-			const cs = [...this.controls];
-			this.controls.length = 0;
-			this.needsUnwrap = false;
-			this.lastKnot = null;
-			this.unwrapImpl(cs);
+
+	flatten() {
+		for (let cycle = 0; cycle < 32; cycle++) {
+			const nd = this.flattenImpl();
+			if (!nd) break;
 		}
-		for (const item of this.controls) {
-			if (!(item instanceof BiKnot)) throw new Error("Invalid control sequence");
-			item.originalKnot = null;
+
+		let final = [];
+		for (const c of this.controls) {
+			this.addToSink(final, c.resolveNonInterpolated());
+		}
+		this.controls = final;
+	}
+
+	pipe(collector) {
+		for (const fn of this.preControls) fn.applyTo(collector);
+		for (const control of this.controls) collector.pushKnot(control);
+		for (const postControl of this.postControls) postControl.applyTo(collector);
+		collector.finish();
+	}
+
+	/// Add a control object (or list) to a sink
+	/// Return the total number of items that may have dependencies
+	addToSink(sink, c) {
+		if (Array.isArray(c)) {
+			let nd = 0;
+			for (const item of c) nd += this.addToSink(sink, item);
+			return nd;
+		} else {
+			if (!c.getDependency) {
+				console.error(c);
+			}
+			sink.push(c);
+
+			const cHasDependency = c.getDependency(RES_DEP_STAGE_INTERPOLATION);
+			return cHasDependency ? 1 : 0;
 		}
 	}
-	unwrapImpl(cs) {
-		let tmp = [];
-		for (let j = 0; j < cs.length; j++) {
-			if (cs[j] instanceof InterpolatorBase) {
-				const kBefore = cs[nCyclic(j - 1, cs.length)];
-				const kAfter = cs[nCyclic(j + 1, cs.length)];
-				const blended = cs[j].blender(kBefore.originalKnot, kAfter.originalKnot, cs[j]);
-				tmp.push(blended);
+
+	flattenImpl() {
+		return this.doInterpolate();
+	}
+
+	doInterpolate() {
+		let nd = 0;
+		let sink = [];
+		const dr = this.getDependenciesForInterpolation();
+		for (let i = 0; i < this.controls.length; i++) {
+			if (dr.deps[i] <= DEP_SKIP) {
+				nd += this.addToSink(sink, this.controls[i]);
 			} else {
-				tmp.push(cs[j].originalKnot);
+				nd += this.addToSink(
+					sink,
+					this.controls[i].resolveInterpolation(
+						this.controls[dr.prevNonDependentIdx[i]].getKernelKnot(),
+						this.controls[dr.nextNonDependentIdx[i]].getKernelKnot(),
+					),
+				);
+			}
+		}
+		this.controls = sink;
+		return nd;
+	}
+
+	getDependenciesForInterpolation() {
+		let nNonDependent = 0;
+		let nDependent = 0;
+		let deps = [];
+		/// Index to the next non-dependent control
+		let nextNonDependentIdx = [];
+		let prevNonDependentIdx = [];
+
+		for (let i = 0; i < this.controls.length; i++) {
+			let s = this.controls[i].getDependency(RES_DEP_STAGE_INTERPOLATION);
+			if (s) {
+				nDependent += 1;
+			} else {
+				nNonDependent += 1;
+			}
+			deps.push(s);
+			nextNonDependentIdx.push(-1);
+			prevNonDependentIdx.push(-1);
+		}
+
+		let iFirstNonDependent = -1;
+		let iLastNonDependent = -1;
+		for (let i = 0; i < this.controls.length; i++) {
+			if (deps[i] === 0) {
+				if (iFirstNonDependent < 0) iFirstNonDependent = i;
+				if (iLastNonDependent >= 0) {
+					nextNonDependentIdx[iLastNonDependent] = i;
+					prevNonDependentIdx[i] = iLastNonDependent;
+				}
+				iLastNonDependent = i;
+			} else if (iLastNonDependent >= 0) {
+				prevNonDependentIdx[i] = iLastNonDependent;
+			}
+		}
+		if (iFirstNonDependent < 0 || iLastNonDependent < 0) {
+			console.log(this.controls, deps);
+			throw new Error("A control sequence must have at least one non-dependent control");
+		} else {
+			nextNonDependentIdx[iLastNonDependent] = iFirstNonDependent;
+			prevNonDependentIdx[iFirstNonDependent] = iLastNonDependent;
+		}
+
+		for (let i = 0; i < iFirstNonDependent; i++) {
+			prevNonDependentIdx[i] = iLastNonDependent;
+		}
+		for (let i = 0; i < this.controls.length; i++) {
+			if (deps[i] != 0) {
+				nextNonDependentIdx[i] = nextNonDependentIdx[prevNonDependentIdx[i]];
 			}
 		}
 
-		this.add(tmp);
-	}
-
-	pushKnot(c) {
-		let k;
-		if (this.lastKnot) {
-			k = new BiKnot(c.type, c.x, c.y, this.lastKnot.d1, this.lastKnot.d2);
-		} else {
-			k = new BiKnot(c.type, c.x, c.y, this.defaultD1, this.defaultD2);
-		}
-		k.originalKnot = c;
-
-		this.controls.push(k);
-		this.lastKnot = k;
-
-		c.applyTo(this);
-	}
-	setWidth(l, r) {
-		if (this.lastKnot) {
-			this.lastKnot.d1 = l;
-			this.lastKnot.d2 = r;
-		} else {
-			this.defaultD1 = l;
-			this.defaultD2 = r;
-		}
-	}
-	headsTo(direction) {
-		if (this.lastKnot) {
-			this.lastKnot.proposedNormal = direction;
-		}
-	}
-	setUnimportant() {
-		if (this.lastKnot) {
-			this.lastKnot.unimportant = 1;
-		}
-	}
-	setContrast(c) {
-		this.contrast = c;
+		return { nDependent, deps, prevNonDependentIdx, nextNonDependentIdx };
 	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-export class MonoKnot {
-	constructor(type, unimportant, x, y) {
-		this.type = type;
-		this.x = x;
-		this.y = y;
-		this.unimportant = unimportant;
+/** The "amendmend function" */
+export class AfBase {
+	applyTo() {
+		throw new Error("Unimplemented");
 	}
-	clone() {
-		const k1 = new MonoKnot(this.type, this.x, this.y, this.unimportant);
-		return k1;
-	}
-	hash(h) {
-		h.beginStruct("MonoKnot");
-		h.str(this.type);
-		h.bool(this.unimportant);
-		h.f64(this.x);
-		h.f64(this.y);
-		h.endStruct();
-	}
+}
 
-	reverseType() {
-		if (this.type === "left") {
-			this.type = "right";
-		} else if (this.type === "right") {
-			this.type = "left";
-		}
+export class AfCombine extends AfBase {
+	constructor(af1, af2) {
+		super();
+		this.af1 = af1;
+		this.af2 = af2;
+	}
+	applyTo(target) {
+		if (this.af1) this.af1.applyTo(target);
+		if (this.af2) this.af2.applyTo(target);
 	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-class BiKnot {
-	constructor(type, x, y, d1, d2) {
-		this.type = type;
-		this.x = x;
-		this.y = y;
-		this.d1 = d1;
-		this.d2 = d2;
-		this.proposedNormal = null;
-		this.unimportant = 0;
+const RES_DEP_STAGE_INTERPOLATION = 1;
 
-		// Derived properties
-		this.origTangent = null;
-		this.originalKnot = null;
-	}
-	clone() {
-		const k1 = new BiKnot(this.type, this.x, this.y, this.d1, this.d2);
-		k1.origTangent = this.origTangent;
-		k1.proposedNormal = this.proposedNormal;
-		k1.unimportant = this.unimportant;
-		return k1;
-	}
-	withGizmo(gizmo) {
-		const tfZ = gizmo.applyXY(this.x, this.y);
-		const k1 = new BiKnot(this.type, tfZ.x, tfZ.y, this.d1, this.d2);
-		k1.origTangent = this.origTangent ? gizmo.applyOffset(this.origTangent) : null;
-		k1.proposedNormal = this.proposedNormal ? gizmo.applyOffset(this.proposedNormal) : null;
-		k1.unimportant = this.unimportant;
-		return k1;
-	}
-	hash(h) {
-		h.beginStruct("BiKnot");
-		h.str(this.type);
-		h.bool(this.unimportant);
-		h.f64(this.x);
-		h.f64(this.y);
+export const DEP_SKIP = 0x1;
+export const DEP_PRE_X = 0x2;
+export const DEP_PRE_Y = 0x4;
+export const DEP_SAME_X = 0x8;
+export const DEP_SAME_Y = 0x10;
+export const DEP_POST_X = 0x20;
+export const DEP_POST_Y = 0x40;
 
-		h.bool(this.d1 != null);
-		if (this.d1 != null) h.f64(this.d1);
-		h.bool(this.d2 != null);
-		if (this.d2 != null) h.f64(this.d2);
-
-		h.bool(this.proposedNormal != null);
-		if (this.proposedNormal) {
-			h.f64(this.proposedNormal.x);
-			h.f64(this.proposedNormal.y);
-		}
-		h.endStruct();
-	}
-
-	toMono() {
-		return new MonoKnot(this.type, this.unimportant, this.x, this.y);
-	}
-}
-
-function nCyclic(p, n) {
-	return (p + n + n) % n;
-}
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
+const DEP_PRE = DEP_PRE_X | DEP_PRE_Y;
+const DEP_POST = DEP_POST_X | DEP_POST_Y;
 
 export class UserControlKnot {
 	constructor(type, x, y, af) {
@@ -203,28 +190,165 @@ export class UserControlKnot {
 		this.af = af;
 	}
 	applyTo(ctx) {
-		if (this.af) this.af.call(ctx);
+		if (this.af) this.af.applyTo(ctx);
+	}
+
+	getDependency() {
+		return 0;
+	}
+
+	getKernelKnot() {
+		return this;
+	}
+	resolveCoordiantePropogation(ic, pre, post) {
+		switch (ic) {
+			case 0:
+				this.x = this.x.resolveX(pre, this, post);
+				break;
+			case 1:
+				this.y = this.y.resolveY(pre, this, post);
+				break;
+		}
+	}
+
+	resolveNonInterpolated() {
+		return this;
+	}
+	resolveInterpolation() {
+		throw new Error("Unreachable");
+	}
+
+	static isCoordinateValid(x) {
+		return isFinite(x);
 	}
 }
+
+export class UserCloseKnotPair {
+	constructor(center, tyPre, tyPost, dirX, dirY, dPre, dPost) {
+		this.center = center;
+		this.tyPre = tyPre;
+		this.tyPost = tyPost;
+		this.dirX = dirX;
+		this.dirY = dirY;
+		this.dPre = dPre;
+		this.dPost = dPost;
+	}
+
+	getDependency(stage) {
+		return this.center.getDependency(stage);
+	}
+
+	getKernelKnot() {
+		return this.center.getKernelKnot();
+	}
+	resolveCoordiantePropogation(ic, pre, post) {
+		this.center.resolveCoordiantePropogation(ic, pre, post);
+	}
+
+	resolveNonInterpolated() {
+		return [
+			new UserControlKnot(
+				this.tyPre,
+				this.center.x + this.dirX * this.dPre,
+				this.center.y + this.dirY * this.dPre,
+				this.center.af,
+			),
+			new UserControlKnot(
+				this.tyPost,
+				this.center.x + this.dirX * this.dPost,
+				this.center.y + this.dirY * this.dPost,
+				this.center.af,
+			),
+		];
+	}
+	resolveInterpolation() {
+		throw new Error("Unreachable");
+	}
+}
+
+export class VirtualControlKnot {
+	constructor(x, y, af) {
+		this.center = new UserControlKnot("corner", x, y, af);
+	}
+
+	getDependency(stage) {
+		return this.center.getDependency(stage);
+	}
+	getKernelKnot() {
+		return this.center.getKernelKnot();
+	}
+	resolveCoordiantePropogation(ic, pre, post) {
+		this.center.resolveCoordiantePropogation(ic, pre, post);
+	}
+	resolveNonInterpolated() {
+		return [];
+	}
+	resolveInterpolation() {
+		throw new Error("Unreachable");
+	}
+}
+
+export class InterpolatorBase {
+	constructor() {}
+
+	getDependency(stage) {
+		switch (stage) {
+			case RES_DEP_STAGE_INTERPOLATION:
+				return DEP_PRE | DEP_POST;
+			default:
+				return 0;
+		}
+	}
+	getKernelKnot() {
+		throw new Error("Unreachable");
+	}
+	resolveCoordiantePropogation() {
+		throw new Error("Unreachable");
+	}
+
+	resolveNonInterpolated() {
+		throw new Error("Unreachable: All interpolations shall be resolved now");
+	}
+	resolveInterpolation(pre, post) {
+		throw new Error("Unimplemented");
+	}
+}
+
+/**
+ * Used in [decor@] (and thus operator (~~~)).
+ * Make a list of control items "delayed" till resolution of interpolator.
+ * Useful for specifying the decoration features of a path.
+ */
+export class DecorInterpolator extends InterpolatorBase {
+	constructor(items) {
+		super();
+		this.items = items;
+	}
+	resolveInterpolation(pre, post) {
+		return this.items;
+	}
+}
+
+export class FunctionInterpolator extends InterpolatorBase {
+	constructor(blendFn, extraArgs) {
+		super();
+		this.blendFn = blendFn;
+		this.extraArgs = extraArgs;
+	}
+	resolveInterpolation(pre, post) {
+		return this.blendFn(pre, post, this.extraArgs);
+	}
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
 export class TerminateInstruction {
 	constructor(type, af) {
 		this.type = type;
 		this.af = af;
 	}
 	applyTo(ctx) {
+		if (this.type === "close") ctx.closed = true;
 		if (this.af) throw new Error("Unreachable");
-		// if (this.af) this.af.call(ctx);
 	}
-}
-export class InterpolatorBase {
-	constructor(blender) {
-		this.type = "interpolate";
-		this.blender = blender;
-	}
-}
-export function Interpolator(blender, restParameters) {
-	const base = new InterpolatorBase(blender);
-	const interpolator = Object.create(base);
-	for (const prop in restParameters) interpolator[prop] = restParameters[prop];
-	return interpolator;
 }

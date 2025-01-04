@@ -187,6 +187,11 @@ glyph-block Symbol-Punctuation-Small : begin
 			include [refer-glyph "revComma.\(suffix)"] AS_BASE ALSO_METRICS
 			include [refer-glyph "xhPeriod.\(suffix)"]
 
+		create-glyph "doubleStackedComma.\(suffix)" : glyph-proc
+			include [refer-glyph "comma.\(suffix)"] AS_BASE ALSO_METRICS
+			include : with-transform [ApparentTranslate 0 (XH - 2 * PeriodRadius * kDotRadius)] : composite-proc
+				refer-glyph "comma.\(suffix)"
+
 		local multiDotShift : RightSB - (DotRadius * kDotRadius) - Middle
 		local multiDotShiftDense : [mix Width RightSB 0.5] - (DotRadius * kDotRadius) - Middle
 
@@ -260,7 +265,7 @@ glyph-block Symbol-Punctuation-Small : begin
 		create-glyph "dottedCross.\(suffix)" : glyph-proc
 			include : HBar.m [mix 0 SB 0.5] [mix Width RightSB 0.5] (XH / 2) OperatorStroke
 			include : VBar.m Middle 0 XH OperatorStroke
-			local radius : 0.5 * [AdviceStroke 3] * HVContrast
+			local radius : HSwToV : 0.5 * [AdviceStroke 3]
 			include : DrawAt (SB + radius)      (XH * 0.75) (kDotRadius * radius - overshoot)
 			include : DrawAt (SB + radius)      (XH * 0.25) (kDotRadius * radius - overshoot)
 			include : DrawAt (RightSB - radius) (XH * 0.75) (kDotRadius * radius - overshoot)
@@ -272,6 +277,7 @@ glyph-block Symbol-Punctuation-Small : begin
 	select-variant 'modifierLetterRaisedColon' 0x2F8 (follow -- 'punctuationDot')
 	select-variant 'semicolon' ';' (follow -- 'punctuationDot')
 	select-variant 'invertSemicolon' 0x204F (follow -- 'punctuationDot')
+	select-variant 'doubleStackedComma' 0x2E49 (follow -- 'punctuationDot')
 
 	select-variant 'threeDotPunct' 0x2056 (follow -- 'punctuationDot')
 	select-variant 'geor/paragraphSeparator' 0x10FB (follow -- 'punctuationDot')
@@ -289,6 +295,7 @@ glyph-block Symbol-Punctuation-Small : begin
 	select-variant 'dottedCross' 0x205C (follow -- 'punctuationDot')
 
 	alias 'grek/question' 0x37E 'semicolon'
+	alias 'armn/fullstop' 0x589 'colon'
 
 	turned 'turnSemiColon' 0x2E35 'semicolon' [DivFrame para.diversityF].middle (XH / 2)
 

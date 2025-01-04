@@ -2,7 +2,7 @@
 $$include '../meta/macros.ptl'
 
 import [mix linreg clamp fallback] from "@iosevka/util"
-import [getGrMesh AnyCvOrCherryPicking CvDecompose Joining hashCv IsCompositeOrLigature] from "@iosevka/glyph/relation"
+import [getGrMesh AnyCvOrCherryPicking CvDecompose Joining hashCv IsCompositeOrLigature NLDAcuteVariant HBSCaronVariant] from "@iosevka/glyph/relation"
 import [hashGeometry] from "@iosevka/geometry"
 import [Transform] from "@iosevka/geometry/transform"
 extern Map
@@ -16,7 +16,6 @@ define CENTERED           true
 define NOT-CENTERED       false
 define ALLOW-PROPORTIONAL true
 define MONOSPACE-ONLY     false
-define StandardSpacing      nothing
 
 glyph-block Autobuild-Enclosure-Shared : begin
 	glyph-block-import CommonShapes
@@ -120,7 +119,7 @@ glyph-block AutoBuild-Enclosure : begin
 
 	define circleWidthClasses {{'NWID' Width 0.12} {'WWID' WideWidth0 0.08}}
 	define [AdjustDigitCount digits width] : Math.max 1 (digits * Width / width)
-	define [EnclosureStrokeScale dscale digits width] : dscale / [Math.pow [AdjustDigitCount digits width] 0.66]
+	define [EnclosureStrokeScale dscale digits width] : dscale / ([AdjustDigitCount digits width] ** 0.66)
 
 	define enclosureInnerPartActualWidth : new Map
 
@@ -130,23 +129,21 @@ glyph-block AutoBuild-Enclosure : begin
 			hashCv subGlyph
 		return : '.ci.' + gniPrefix + '/' + [nameParts.join '/']
 
-	define [EnsureInnerSubGlyphImpl gniPrefix markClass miniatureFont mp actualWidth accumulatedTfm] : function [gidPart] : begin
+	define [EnsureInnerSubGlyphImpl inners markClass miniatureFont mp actualWidth accumulatedTfm] : function [gidPart] : begin
 		define subGlyph : miniatureFont.queryByNameEnsured gidPart
-		define gniPart : GlyphNameInnerOf gniPrefix subGlyph mp actualWidth accumulatedTfm
-		if [not : query-glyph gniPart] : begin
-			enclosureInnerPartActualWidth.set gniPart (actualWidth)
-			create-glyph gniPart : glyph-proc
-				set-width 0
-				set-mark-anchor 'compositeInner' 0 0
-				include subGlyph
-				include accumulatedTfm
-				if mp
-					then : set-mark-anchor markClass 0 0 (actualWidth) 0
-					else : set-mark-anchor markClass (actualWidth / 2) 0
+		define gniPart : GlyphNameInnerOf inners.gniPrefix subGlyph mp actualWidth accumulatedTfm
+		if [query-glyph gniPart] : return gniPart
 
+		enclosureInnerPartActualWidth.set gniPart (actualWidth)
+		create-glyph gniPart : glyph-proc
+			set-width 0
+			set-mark-anchor 'compositeInner' 0 0
+			include : inners.buildInnerShape subGlyph
+			include accumulatedTfm
+			include : inners.addAnchors mp markClass actualWidth
 		return gniPart
 
-	define [EnsureInnerSubGlyphSeq gniPrefix markClass miniatureFont job dimens yCompress kExtraYShift] : begin
+	define [EnsureInnerSubGlyphSeq inners markClass miniatureFont job dimens yCompress kExtraYShift] : begin
 		define { gn unicode parts w bal baly }      job
 		define [object width mockInnerWidth dscale] dimens
 
@@ -156,10 +153,10 @@ glyph-block AutoBuild-Enclosure : begin
 			local derivedGlyph : miniatureFont.queryByNameEnsured gidPart
 			if [not firstDerivedGyph] : set firstDerivedGyph derivedGlyph
 			set totalWidth : totalWidth + derivedGlyph.advanceWidth
-		local xCompress [Math.min 1 (mockInnerWidth / totalWidth)]
+		local xCompress : inners.getXScalar parts.length markClass mockInnerWidth totalWidth
 		set totalWidth : Math.min mockInnerWidth totalWidth
 
-		local shift : getGlyphDefaultShift bal baly firstDerivedGyph
+		local shift : inners.getShift bal baly firstDerivedGyph
 		local accumulatedTfm : Transform.Combine
 			firstDerivedGyph.gizmo.inverse
 			Scale (dscale * xCompress) (dscale * yCompress)
@@ -168,15 +165,15 @@ glyph-block AutoBuild-Enclosure : begin
 
 		local finalParts {}
 		foreach partIndex [range 0 parts.length] : do
-			define gidPart parts.(partIndex)
+			local gidPart parts.(partIndex)
 			local actualWidth : [miniatureFont.queryByNameEnsured gidPart].advanceWidth * dscale * xCompress
 			finalParts.push : EnsureComponentGlyphT gidPart
-				EnsureInnerSubGlyphImpl gniPrefix markClass miniatureFont (parts.length > 1) actualWidth accumulatedTfm
+				EnsureInnerSubGlyphImpl inners markClass miniatureFont (parts.length > 1) actualWidth accumulatedTfm
 
 		return finalParts
 
 	define [EnclosureInnerImpl dimens finalParts] : glyph-proc
-		define [object width dscale mockInnerWidth] dimens
+		define [object width] dimens
 
 		local totalInnerWidth 0
 		foreach [gniPart : items-of finalParts] : begin
@@ -186,38 +183,44 @@ glyph-block AutoBuild-Enclosure : begin
 			include : with-transform [Translate x 0] : refer-glyph gniPart
 			set x : x + ([enclosureInnerPartActualWidth.get gniPart] || 0)
 
-	define [EnclosureInner gniPrefix gnEnclosure miniatureFont job dimens] : begin
+	define [EnclosureInner dimens inners miniatureFont job] : glyph-proc
 		define { gn unicode parts w bal baly }      job
-		define [object width mockInnerWidth dscale] dimens
-		local finalParts : EnsureInnerSubGlyphSeq gniPrefix 'enclosureInner' miniatureFont job dimens 1 0
-		if gnEnclosure : return : glyph-proc
-			include : EnclosureInnerImpl dimens finalParts
-			CvDecompose.set currentGlyph [{gnEnclosure}.concat finalParts]
-		: else : return : new-glyph : EnclosureInnerImpl dimens finalParts
+		define [object width] dimens
 
-	define [TwoRowEnclosureInner gniPrefix gnEnclosure miniatureFont job dimens] : begin
+		local finalParts : EnsureInnerSubGlyphSeq inners 'enclosureInner' miniatureFont job dimens 1 0
+
+		include : new-glyph : EnclosureInnerImpl dimens finalParts
+		return finalParts
+
+	define [TwoRowEnclosureInner dimens inners miniatureFont job] : glyph-proc
 		define { gn unicode parts w bal baly }      job
-		define [object width mockInnerWidth dscale] dimens
+		define [object width] dimens
 		local jobFirstHalf  { gn unicode [parts.slice 0 (parts.length / 2)] w bal baly }
 		local jobSecondHalf { gn unicode [parts.slice (parts.length / 2)  ] w bal baly }
-		local finalPartsFirstHalf  : EnsureInnerSubGlyphSeq gniPrefix 'enclosureInnerFirstHalf'  miniatureFont jobFirstHalf  dimens 0.45 (+0.55)
-		local finalPartsSecondHalf : EnsureInnerSubGlyphSeq gniPrefix 'enclosureInnerSecondHalf' miniatureFont jobSecondHalf dimens 0.45 (+0.00)
-		if gnEnclosure : return : glyph-proc
-			include : EnclosureInnerImpl dimens finalPartsFirstHalf
-			include : EnclosureInnerImpl dimens finalPartsSecondHalf
-			CvDecompose.set currentGlyph [{gnEnclosure}.concat finalPartsFirstHalf finalPartsSecondHalf]
-		: else : return : new-glyph : glyph-proc
-			include : EnclosureInnerImpl dimens finalPartsFirstHalf
-			include : EnclosureInnerImpl dimens finalPartsSecondHalf
+		local finalPartsFirstHalf  : EnsureInnerSubGlyphSeq inners "enclosureInnerFirstHalf"  miniatureFont jobFirstHalf  dimens 0.55 (+0.55)
+		local finalPartsSecondHalf : EnsureInnerSubGlyphSeq inners "enclosureInnerSecondHalf" miniatureFont jobSecondHalf dimens 0.55 (-0.10)
 
-	define [CircCrowd digits width] : 2 + 2 * [Math.pow [AdjustDigitCount digits width] (2 / 3)] * [Math.max 1 (HalfUPM / Width)]
-	define [CircScale digits width] : 0.65 / [Math.pow [AdjustDigitCount digits width] 0.5]
+		return : {}.concat finalPartsFirstHalf finalPartsSecondHalf
 
-	define [circleDimens digits w m] : begin
+	define [PlayingCardInner dimens inners miniatureFont job] : glyph-proc
+		define { gn unicode parts w bal baly }      job
+		define [object width] dimens
+		local jobFirstHalf  { gn unicode [parts.slice 0 (parts.length / 2)] w bal baly }
+		local jobSecondHalf { gn unicode [parts.slice (parts.length / 2)  ] w bal baly }
+
+		local finalPartsFirstHalf  : EnsureInnerSubGlyphSeq inners "enclosureInnerFirstHalf"  miniatureFont jobFirstHalf  dimens 0.6 (+0.55)
+		local finalPartsSecondHalf : EnsureInnerSubGlyphSeq inners "enclosureInnerSecondHalf" miniatureFont jobSecondHalf dimens 0.6 (-0.15)
+
+		return : {}.concat finalPartsFirstHalf finalPartsSecondHalf
+
+	define [CircCrowd digits width] : 2 + 2 * ([AdjustDigitCount digits width] ** (2 / 3)) * [Math.max 1 (HalfUPM / Width)]
+	define [CircScale digits width] : 0.65  / ([AdjustDigitCount digits width] ** (1 / 2))
+
+	define [CircleDimens digits w m] : begin
 		define width : fallback w Width
 		define dscale :  linreg HalfUPM 0.55 UPM 0.6  width
 		define spatt  : [linreg HalfUPM 0.22 UPM 0.27 width] * (Width / HalfUPM)
-		define sw0 : [EnclosureStrokeScale dscale digits width] * [AdviceStroke [CircCrowd digits width]] / [CircScale digits width]
+		define sw0 : [EnclosureStrokeScale dscale digits width] * [AdviceStroke : CircCrowd digits width] / [CircScale digits width]
 		define sw : Math.max sw0 [fallback m 0]
 		define top : SymbolMid + CAP * dscale / 2 + (CAP * spatt)
 		define bot : SymbolMid - CAP * dscale / 2 - (CAP * spatt)
@@ -240,71 +243,136 @@ glyph-block AutoBuild-Enclosure : begin
 		define archDepthB : ArchDepthBOf (SmallArchDepth * (right - left) / (RightSB - SB)) width
 		return : object width mockInnerWidth dscale sw0 sw top bot left right mosaicTop mosaicBot mosaicLeft mosaicRight archDepthA archDepthB
 
-	define StandardSpacing : object
+	define StandardInners : object
 		gniPrefix  ''
+		buildInnerShape : function [subGlyph] : return subGlyph
+		getXScalar : function [nParts markClass mockInnerWidth totalWidth] : begin
+			Math.min 1 (mockInnerWidth / totalWidth)
+		getShift getGlyphDefaultShift
 		getPara : function [pp digits rows width] : MiniatureParaT pp
 			crowd      -- [CircCrowd (digits / rows) width]
 			scale      -- [CircScale (digits / rows) width]
 			sbscale    -- 1
 			mono       -- (digits > 1)
 			mono2      -- (digits > 1)
+		addAnchors : function [fMultiPart markClass actualWidth] : glyph-proc
+			if fMultiPart
+			: then : set-mark-anchor markClass 0 0 (actualWidth) 0
+			: else : set-mark-anchor markClass (actualWidth / 2) 0
 
-	define ItalicSpacing : object
+	define PlayingCardInners : object
+		gniPrefix  'pk'
+		buildInnerShape StandardInners.buildInnerShape
+		getPara         StandardInners.getPara
+		getShift : function [] : return 0
+		getXScalar : function [nParts markClass] : begin
+			if (nParts > 1 && markClass === 'enclosureInnerFirstHalf')
+			: then : return 0.5
+			: else : return 0.6
+		addAnchors : function [fMultiPart markClass actualWidth] : glyph-proc
+			if (markClass === 'enclosureInnerFirstHalf')
+			: then : set-mark-anchor markClass 0 0 actualWidth 0 # left-to-right
+			: else : set-mark-anchor markClass actualWidth 0 0 0 # right-to-left
+
+	define DecomposableInsetInners : object
+		gniPrefix  'd'
+		getShift        StandardInners.getShift
+		addAnchors      StandardInners.addAnchors
+		getXScalar      StandardInners.getXScalar
+		buildInnerShape : function [subGlyph] : difference
+			Rect (1.05 * CAP - O) (-0.05 * CAP + O) O (Width - O)
+			begin subGlyph
+		getPara : function [pp digits rows width] : MiniatureParaT pp
+			crowd      -- [CircCrowd (digits / rows) width]
+			scale      -- [CircScale (digits / rows) width]
+			sbscale    -- 1
+			mono       -- true
+			mono2      -- true
+
+	define ItalicInners : object
 		gniPrefix 'i'
-		getPara : function[pp digits rows width] : begin
+		getShift        StandardInners.getShift
+		buildInnerShape StandardInners.buildInnerShape
+		addAnchors      StandardInners.addAnchors
+		getXScalar      StandardInners.getXScalar
+		getPara : function [pp digits rows width] : begin
 			define pp1 : pp.createFork : function [a] : begin
 				set a.shape.slope 'italic'
 				set a.shape.slopeAngle : mix (para.slopeAngle || 0) 15 (95 / 150)
-			return : StandardSpacing.getPara pp1 digits rows width
+			return : StandardInners.getPara pp1 digits rows width
 
-	define [EnclosureT prefix builder spacing digits rows demands fnEnclosure] : begin
+	define [EnclosureT prefix builder inners digits rows demands fnEnclosure] : begin
 		foreach {suffix ww gap} [items-of circleWidthClasses] : do
 			define allowProportional : if (digits > 1) MONOSPACE-ONLY ALLOW-PROPORTIONAL
 			define jobs : CollectJobs builder.decomposable CENTERED allowProportional (prefix + digits) suffix demands
-			define forkedPara : spacing.getPara para digits rows ww
+			define forkedPara : inners.getPara para digits rows ww
 			define miniatureFont : CreateDerivedFontFromJobs jobs {} : function [gs] : Fork gs forkedPara
 			define gnEnclosure : CircName null (prefix + digits + '.enclosure') {} suffix
+
+			define [buildImpl job decomposable] : begin
+				define { gn unicode parts w bal baly } job
+				if [query-glyph gn] : return nothing
+				create-glyph gn [if (w == ww) unicode null] : glyph-proc
+					define dimens : CircleDimens digits ww
+					set-width dimens.width
+					include : builder.buildGlyph dimens inners miniatureFont decomposable job gnEnclosure
+						# if decomposable gnEnclosure null
+
 			if [not : query-glyph gnEnclosure] : create-glyph gnEnclosure : fnEnclosure digits ww gap
-			foreach job [items-of jobs.decomposableJobs] : begin
-				builder.build (prefix + digits) spacing.gniPrefix digits ww gap job miniatureFont gnEnclosure true
-			foreach job [items-of jobs.nonDecomposable] : begin
-				builder.build (prefix + digits) spacing.gniPrefix digits ww gap job miniatureFont gnEnclosure false
+			foreach job [items-of jobs.decomposableJobs] : buildImpl job true
+			foreach job [items-of jobs.nonDecomposable] : buildImpl job false
 			applyRelations jobs.relApplications
 
 	# Builders and Enclosure Shapes
 	define CircledBuilder : object
 		decomposable true
-		build : lambda [prefix gniPrefix digits ww gap job miniatureFont gnEnclosure decomposable] : begin
-			define { gn unicode parts w bal baly } job
-			define dimens : circleDimens digits ww
-			define [object width mockInnerWidth dscale] dimens
-			if [not : query-glyph gn] : create-glyph gn [if (w == ww) unicode null] : glyph-proc
-				set-width width
-				include : EnclosureInner gniPrefix [if decomposable gnEnclosure null] miniatureFont job dimens
-				include : refer-glyph gnEnclosure
+		buildGlyph : function [dimens inners miniatureFont decomp job gnEnclosure] : glyph-proc
+			include : refer-glyph gnEnclosure
+			local parts : include : EnclosureInner dimens inners miniatureFont job
+			if decomp : CvDecompose.set currentGlyph [{gnEnclosure}.concat parts]
+
+	define DecomposableInsetBuilder : object
+		decomposable true
+		buildGlyph : function [dimens inners miniatureFont decomp job gnEnclosure] : glyph-proc
+			include : CircledBuilder.buildGlyph dimens inners miniatureFont decomp job gnEnclosure
+			include : radicalize
 
 	define TwoRowBoxedBuilder : object
 		decomposable true
-		build : lambda [prefix gniPrefix digits ww gap job miniatureFont gnEnclosure decomposable] : begin
-			define { gn unicode parts w bal baly } job
-			define dimens : circleDimens digits ww
-			define [object width mockInnerWidth dscale] dimens
-			if [not : query-glyph gn] : create-glyph gn [if (w == ww) unicode null] : glyph-proc
-				set-width width
-				include : TwoRowEnclosureInner gniPrefix [if decomposable gnEnclosure null] miniatureFont job dimens
-				include : refer-glyph gnEnclosure
+		buildGlyph : function [dimens inners miniatureFont decomp job gnEnclosure] : glyph-proc
+			include [refer-glyph gnEnclosure] AS_BASE ALSO_METRICS
+			local parts : include : TwoRowEnclosureInner dimens inners miniatureFont job
+			foreach [part : items-of parts] : include : refer-glyph part
+			if decomp : CvDecompose.set currentGlyph [{gnEnclosure}.concat parts]
+
+	define PlayingCardBuilder : object
+		decomposable true
+		buildGlyph : function [dimens inners miniatureFont decomp job gnEnclosure] : glyph-proc
+			include [refer-glyph gnEnclosure] AS_BASE ALSO_METRICS
+			local parts : include : PlayingCardInner dimens inners miniatureFont job
+			foreach [part : items-of parts] : include : refer-glyph part
+			if decomp : CvDecompose.set currentGlyph [{gnEnclosure}.concat parts]
 
 	define InsetBuilder : object
 		decomposable false
-		build : lambda [prefix gniPrefix digits ww gap job miniatureFont gnEnclosure decomposable] : begin
-			define { gn unicode parts w bal baly } job
-			define dimens : circleDimens digits ww
-			define [object width mockInnerWidth dscale] dimens
-			if [not : query-glyph gn] : create-glyph gn [if (w == ww) unicode null] : glyph-proc
-				set-width width
-				include : difference
-					refer-glyph gnEnclosure
-					EnclosureInner gniPrefix [if decomposable gnEnclosure null] miniatureFont job dimens
+		buildGlyph : function [dimens inners miniatureFont decomp job gnEnclosure] : difference
+			refer-glyph gnEnclosure
+			EnclosureInner dimens inners miniatureFont job
+
+	define InsetWithGapBuilder : object
+		decomposable false
+		buildGlyph : function [dimens inners miniatureFont decomp job gnEnclosure] : begin
+			define [object top bot left right] dimens
+			local gap : Math.max [AdviceStroke 6] (Width * 0.08)
+			local [inner] : EnclosureInner dimens inners miniatureFont job
+			return : difference
+				intersection
+					Rect top bot left right
+					union
+						refer-glyph gnEnclosure
+						remove-holes [inner]
+						with-outlined gap [inner]
+				inner
 
 	define [AddEnclosureMark digits dimens] : glyph-proc
 		define [object width dscale mockInnerWidth] dimens
@@ -312,26 +380,21 @@ glyph-block AutoBuild-Enclosure : begin
 			set-base-anchor 'enclosureInner' (0.5 * width - 0.5 * dscale * [Math.min (Width * digits) mockInnerWidth]) 0
 			set-base-anchor 'enclosureInner' (0.5 * width) 0
 
-	define [AddEnclosureMarkTwoLine digits dimens] : glyph-proc
-		define [object width dscale mockInnerWidth] dimens
-		if (digits > 1) : begin
-			set-base-anchor 'enclosureInnerFirstHalf' (0.5 * width - 0.5 * dscale * [Math.min (Width * digits) mockInnerWidth]) 0
-			set-base-anchor 'enclosureInnerSecondHalf' (0.5 * width - 0.5 * dscale * [Math.min (Width * digits) mockInnerWidth]) 0
 
 	define [createCircledGlyphs digits demands]
-		EnclosureT "circle" CircledBuilder StandardSpacing digits 1 demands CircleEnclosureShape
+		EnclosureT "circle" CircledBuilder StandardInners digits 1 demands CircleEnclosureShape
 	define [createBackslashCircledGlyphs digits demands]
-		EnclosureT "circle-slashed" CircledBuilder StandardSpacing digits 1 demands BackslashCircleEnclosureShape
+		EnclosureT "circle-slashed" CircledBuilder StandardInners digits 1 demands BackslashCircleEnclosureShape
 	define [createItalicCircledGlyphs digits demands]
-		EnclosureT "circle-italic" CircledBuilder ItalicSpacing digits 1 demands CircleEnclosureShape
+		EnclosureT "circle-italic" CircledBuilder ItalicInners digits 1 demands CircleEnclosureShape
 	define [CircleEnclosureShape digits ww gap] : glyph-proc
-		define [object width sw top bot left right archDepthA archDepthB] : circleDimens digits ww
+		define [object width sw top bot left right archDepthA archDepthB] : CircleDimens digits ww
 		set-width width
 		include : OShape top bot left right sw archDepthA archDepthB
-		include : AddEnclosureMark digits : circleDimens digits ww
+		include : AddEnclosureMark digits : CircleDimens digits ww
 	define [BackslashCircleEnclosureShape digits ww gap] : glyph-proc
 		include : CircleEnclosureShape digits ww gap
-		define [object width sw top bot left right archDepthA archDepthB] : circleDimens digits ww
+		define [object width sw top bot left right archDepthA archDepthB] : CircleDimens digits ww
 		include : intersection
 			OShapeOutline top bot left right sw archDepthA archDepthB
 			dispiro
@@ -339,74 +402,196 @@ glyph-block AutoBuild-Enclosure : begin
 				curl width [mix bot top (1 - 0.77)]
 
 	define [createBoxedGlyphs digits demands]
-		EnclosureT 'boxed' CircledBuilder StandardSpacing digits 1 demands BoxEnclosureShape
+		EnclosureT 'boxed' CircledBuilder StandardInners digits 1 demands BoxEnclosureShape
 	define [BoxEnclosureShape digits ww gap] : glyph-proc
-		define [object width mockInnerWidth sw top bot left right] : circleDimens digits ww
+		define [object width sw top bot left right] : CircleDimens digits ww
 		set-width width
 		include : union
-			HBar.t    left right top sw
-			HBar.b left right bot sw
-			VBar.l   left bot top   sw
-			VBar.r  right bot top  sw
-		include : AddEnclosureMark digits : circleDimens digits ww
+			HBar.t left  right top sw
+			HBar.b left  right bot sw
+			VBar.l left  bot   top sw
+			VBar.r right bot   top sw
+		include : AddEnclosureMark digits : CircleDimens digits ww
 
 	define [createTwoRowBoxedGlyphs digits demands]
-		EnclosureT 'twoRowBoxed' TwoRowBoxedBuilder StandardSpacing digits 2 demands TwoRowBoxEnclosureShape
+		EnclosureT 'twoRowBoxed' TwoRowBoxedBuilder StandardInners digits 2 demands TwoRowBoxEnclosureShape
 	define [TwoRowBoxEnclosureShape digits ww gap] : glyph-proc
-		define [object width mockInnerWidth sw top bot left right] : circleDimens digits ww
+		define [object width sw top bot left right] : CircleDimens digits ww
 		set-width width
 		include : union
-			HBar.t    left right top sw
-			HBar.b left right bot sw
-			VBar.l   left bot top   sw
-			VBar.r  right bot top  sw
-		include : AddEnclosureMarkTwoLine digits : circleDimens digits ww
+			HBar.t left  right top sw
+			HBar.b left  right bot sw
+			VBar.l left  bot   top sw
+			VBar.r right bot   top sw
+		include : AddEnclosureMarkTwoLine digits : CircleDimens digits ww
+	define [AddEnclosureMarkTwoLine digits dimens] : glyph-proc
+		define [object width dscale mockInnerWidth] dimens
+		set-base-anchor 'enclosureInnerFirstHalf'  (0.5 * width - 0.5 * dscale * [Math.min (Width * digits) mockInnerWidth]) 0
+		set-base-anchor 'enclosureInnerSecondHalf' (0.5 * width - 0.5 * dscale * [Math.min (Width * digits) mockInnerWidth]) 0
+
+	define [createPlayingCardGlyphs digits demands]
+		EnclosureT 'playingCard' PlayingCardBuilder PlayingCardInners digits 2 demands PlayingCardEnclosure.Shape
+	define [createTrumpCardGlyphs digits demands]
+		EnclosureT 'trumpCard' CircledBuilder StandardInners digits 1 demands PlayingCardEnclosure.TrumpShape
+	define [createPlayingCardBackGlyphs digits demands]
+		EnclosureT 'playingCardBack' InsetBuilder StandardInners digits 1 demands PlayingCardEnclosure.BackShape
+	define PlayingCardEnclosure : namespace
+		define [Gap dimens] : begin
+			local [object left right sw] dimens
+			return : Math.max ((right - left) / 16) (sw / 2)
+
+		define [CornerRadius dimens] : begin
+			define [object sw left right] dimens
+			return : 1.5 * sw + [Gap dimens]
+
+		define [BorderShape dimens kSw] : glyph-proc
+			local [object width sw top bot left right] dimens
+			local r : CornerRadius dimens
+			include : dispiro
+				widths.rhs (kSw * sw)
+				curl (right - r) top [heading Rightward]
+				archv
+				flat right (top - r) [heading Downward]
+				curl right (bot + r) [heading Downward]
+				arcvh
+				flat (right - r) bot [heading Leftward]
+				curl (left + r) bot [heading Leftward]
+				archv
+				flat left (bot + r) [heading Upward]
+				curl left (top - r) [heading Upward]
+				arcvh
+				flat (left + r) top [heading Rightward]
+				close
+
+		define [BackFillShape dimens] : glyph-proc
+			local [object width sw top bot left right] dimens
+			local gap : Gap dimens
+			local rD : [CornerRadius dimens] - sw - gap
+			local topD : top - sw - gap
+			local botD : bot + sw + gap
+			local leftD : left + sw + gap
+			local rightD : right - sw - gap
+
+			include : spiro-outline
+				widths.rhs sw
+				curl (rightD - rD) topD [heading Rightward]
+				archv
+				flat rightD (topD - rD) [heading Downward]
+				curl rightD (botD + rD) [heading Downward]
+				arcvh
+				flat (rightD - rD) botD [heading Leftward]
+				curl (leftD + rD) botD [heading Leftward]
+				archv
+				flat leftD (botD + rD) [heading Upward]
+				curl leftD (topD - rD) [heading Upward]
+				arcvh
+				flat (leftD + rD) topD [heading Rightward]
+				close
+
+		define [TwoRowMarks dimens] : glyph-proc
+			local [object left right sw] dimens
+			local gap : Gap dimens
+			set-base-anchor 'enclosureInnerFirstHalf'  (left + sw + gap)  0
+			set-base-anchor 'enclosureInnerSecondHalf' (right - sw - gap) 0
+
+		export : define [Shape digits ww] : glyph-proc
+			local dimens : CircleDimens [Math.max digits 3] ww
+			set-width dimens.width
+			include : BorderShape dimens 1
+			include : TwoRowMarks dimens
+
+		export : define [TrumpShape digits ww] : glyph-proc
+			local dimens : CircleDimens [Math.max digits 3] ww
+			set-width dimens.width
+			include : BorderShape dimens 1
+			include : AddEnclosureMark digits : CircleDimens digits ww
+
+		export : define [BackShape digits ww] : glyph-proc
+			local dimens : CircleDimens [Math.max digits 3] ww
+			set-width dimens.width
+			include : BorderShape dimens 0.5
+			include : BackFillShape dimens
+			include : AddEnclosureMark digits : CircleDimens digits ww
 
 	define [createDashedBoxedGlyphs digits demands]
-		EnclosureT 'dashed-boxed' CircledBuilder StandardSpacing digits 1 demands DashedBoxEnclosureShape
+		EnclosureT 'dashed-boxed' CircledBuilder StandardInners digits 1 demands DashedBoxEnclosureShape
 	define [DashedBoxEnclosureShape digits ww cap] : glyph-proc
-		define [object width mockInnerWidth sw top bot left right] : circleDimens digits ww
+		define [object width sw top bot left right] : CircleDimens digits ww
 		set-width width
 		include : difference
 			union
-				HBar.t    left right top sw
-				HBar.b left right bot sw
-				VBar.l   left bot top   sw
-				VBar.r  right bot top  sw
+				HBar.t left  right top sw
+				HBar.b left  right bot sw
+				VBar.l left  bot   top sw
+				VBar.r right bot   top sw
 			union
 				VBar.m [mix left right 0.25] bot top sw
-				VBar.m [mix left right 0.5] bot top sw
+				VBar.m [mix left right 0.50] bot top sw
 				VBar.m [mix left right 0.75] bot top sw
 				HBar.m left right [mix bot top 0.25] sw
 				HBar.m left right [mix bot top 0.50] sw
 				HBar.m left right [mix bot top 0.75] sw
-		include : AddEnclosureMark digits : circleDimens digits ww
+		include : AddEnclosureMark digits : CircleDimens digits ww
 
 	define [createInsetCircledGlyphs digits demands]
-		EnclosureT 'inset-circle' InsetBuilder StandardSpacing digits 1 demands InsetCircleEnclosureShape
+		EnclosureT 'inset-circle' InsetBuilder StandardInners digits 1 demands InsetCircleEnclosureShape
 	define [InsetCircleEnclosureShape digits ww gap] : glyph-proc
-		define [object width sw top bot left right archDepthA archDepthB] : circleDimens digits ww
+		define [object width sw top bot left right archDepthA archDepthB] : CircleDimens digits ww
 		set-width width
 		include : OShapeOutline top bot left right sw archDepthA archDepthB
-		include : AddEnclosureMark digits : circleDimens digits ww
+		include : AddEnclosureMark digits : CircleDimens digits ww
 
 	define [createInsetBoxedGlyphs digits demands]
-		EnclosureT 'inset-boxed' InsetBuilder StandardSpacing digits 1 demands InsetBoxEnclosureShape
+		EnclosureT 'inset-boxed' InsetBuilder StandardInners digits 1 demands InsetBoxEnclosureShape
 	define [InsetBoxEnclosureShape digits ww gap] : glyph-proc
-		define [object width top bot left right] : circleDimens digits ww
+		define [object width top bot left right] : CircleDimens digits ww
 		set-width width
-		include : spiro-outline
-			corner left  top
-			corner left  bot
-			corner right bot
-			corner right top
-			close
-		include : AddEnclosureMark digits : circleDimens digits ww
+		include : Rect top bot left right
+		include : AddEnclosureMark digits : CircleDimens digits ww
+
+	define [createDecomposableInsetCircledGlyphs digits demands]
+		EnclosureT 'inset-circle-decomp' DecomposableInsetBuilder DecomposableInsetInners digits 1 demands DecomposableInsetCircleEnclosureShape
+	define [DecomposableInsetCircleEnclosureShape digits ww gap] : glyph-proc
+		define [object width sw top bot left right archDepthA archDepthB] : CircleDimens digits ww
+		set-width width
+		include : difference
+			OShapeOutline top bot left right sw archDepthA archDepthB
+			DecomposableInsetKnockout digits ww
+		include : AddEnclosureMark digits : CircleDimens digits ww
+
+	define [createDecomposableInsetBoxedGlyphs digits demands]
+		EnclosureT 'inset-boxed-decomp' DecomposableInsetBuilder DecomposableInsetInners digits 1 demands DecomposableInsetBoxEnclosureShape
+	define [DecomposableInsetBoxEnclosureShape digits ww gap] : glyph-proc
+		define [object width top bot left right] : CircleDimens digits ww
+		set-width width
+		include : difference
+			Rect top bot left right
+			DecomposableInsetKnockout digits ww
+		include : AddEnclosureMark digits : CircleDimens digits ww
+
+	define [DecomposableInsetKnockout digits ww] : begin
+		define [object top bot left right dscale mockInnerWidth] : CircleDimens digits ww
+		local xMid : mix left right 0.5
+		local yMid : mix bot top 0.5
+		local halfHeight : CAP * 0.55 * dscale
+		local halfWidth : [Math.min (digits * Width) mockInnerWidth] * 0.5 * dscale
+		return : Rect (yMid + halfHeight) (yMid - halfHeight) (xMid - halfWidth) (xMid + halfWidth)
+
+	define [createCrossInsetBoxedGlyphs digits demands]
+		EnclosureT 'cross-inset-boxed' InsetWithGapBuilder StandardInners digits 1 demands CrossInsetSquareShape
+	define [CrossInsetSquareShape digits ww gap] : glyph-proc
+		define [object width sw top bot left right] : CircleDimens digits ww
+		set-width width
+		include : difference
+			Rect top bot left right
+			ExtLineCenter (-0.1) sw left bot right top
+			ExtLineCenter (-0.1) sw right bot left top
+		include : AddEnclosureMark digits : CircleDimens digits ww
 
 	define [createInsetDiamondGlyphs digits demands]
-		EnclosureT 'inset-diamond' InsetBuilder StandardSpacing digits 1 demands InsetDiamondEnclosureShape
+		EnclosureT 'inset-diamond' InsetBuilder StandardInners digits 1 demands InsetDiamondEnclosureShape
 	define [InsetDiamondEnclosureShape digits ww gap] : glyph-proc
-		define [object width top bot left right] : circleDimens digits ww
+		define [object width top bot left right] : CircleDimens digits ww
 		set-width width
 		include : spiro-outline
 			corner (left + O)  [mix bot top 0.5]
@@ -414,26 +599,21 @@ glyph-block AutoBuild-Enclosure : begin
 			corner (right - O) [mix bot top 0.5]
 			corner [mix left right 0.5] (top - O)
 			close
-		include : AddEnclosureMark digits : circleDimens digits ww
+		include : AddEnclosureMark digits : CircleDimens digits ww
 
 	define [createInsetMosaicGlyphs digits demands]
-		EnclosureT 'inset-mosaic' InsetBuilder StandardSpacing digits 1 demands InsetMosaicEnclosureShape
+		EnclosureT 'inset-mosaic' InsetBuilder StandardInners digits 1 demands InsetMosaicEnclosureShape
 	define [InsetMosaicEnclosureShape digits ww gap] : glyph-proc
-		define [object width mockInnerWidth mosaicTop mosaicBot mosaicLeft mosaicRight] : circleDimens digits ww
+		define [object width mosaicTop mosaicBot mosaicLeft mosaicRight] : CircleDimens digits ww
 		set-width width
 		include : ForceUpright
-		include : spiro-outline
-			corner mosaicLeft  mosaicTop
-			corner mosaicLeft  mosaicBot
-			corner mosaicRight mosaicBot
-			corner mosaicRight mosaicTop
-			close
-		include : AddEnclosureMark digits : circleDimens digits ww
+		include : Rect mosaicTop mosaicBot mosaicLeft mosaicRight
+		include : AddEnclosureMark digits : CircleDimens digits ww
 
 	define [createDoubleCircledGlyphs digits demands]
-		EnclosureT 'double-circle' CircledBuilder StandardSpacing digits 1 demands DoubleCircledEnclosureShape
+		EnclosureT 'double-circle' CircledBuilder StandardInners digits 1 demands DoubleCircledEnclosureShape
 	define [DoubleCircledEnclosureShape digits ww gap] : glyph-proc
-		define [object width mockInnerWidth sw0 sw top bot left right archDepthA archDepthB] : circleDimens digits ww (ww * gap)
+		define [object width sw0 sw top bot left right archDepthA archDepthB] : CircleDimens digits ww (ww * gap)
 		set-width width
 		define sw1 : Math.min sw0 (sw / 3)
 		include : OShape top bot left right sw1 archDepthA archDepthB
@@ -445,14 +625,14 @@ glyph-block AutoBuild-Enclosure : begin
 			begin sw1
 			archDepthA - sw + sw1
 			archDepthB - sw + sw1
-		include : AddEnclosureMark digits : circleDimens digits ww
+		include : AddEnclosureMark digits : CircleDimens digits ww
 
-	define [BraceCrowd digits width] : 2.75 + [AdjustDigitCount digits width]
-	define [BraceScale digits width] : 0.65 / [Math.pow [AdjustDigitCount digits width] 0.5]
-	define [bracedDottdeDimens digits width] : begin
+	define [BraceCrowd digits width] : 2.75 +  [AdjustDigitCount digits width]
+	define [BraceScale digits width] : 0.65 / ([AdjustDigitCount digits width] ** (1 / 2))
+	define [bracedDottedDimens digits width] : begin
 		define dscale : linreg Width 0.55 UPM 0.65 width
 		define pscale : linreg Width 0.6 UPM 0.75 width
-		define sw0 : [EnclosureStrokeScale dscale digits width] * [AdviceStroke [BraceCrowd digits width]] / [BraceScale digits width]
+		define sw0 : [EnclosureStrokeScale dscale digits width] * [AdviceStroke : BraceCrowd digits width] / [BraceScale digits width]
 		define sw : Math.min Stroke sw0
 		define l : Math.max (SB + O * 3) (width / 2 - [Math.max (Width * digits) CAP] / 2)
 		define r : width - l
@@ -473,11 +653,13 @@ glyph-block AutoBuild-Enclosure : begin
 		define [CreateGlyphImpl jobDecomposable job] : begin
 			local {gn unicode parts w bal baly} job
 			if [not : query-glyph gn] : create-glyph gn [if (w == ww) unicode null] : glyph-proc
-				define dimens : bracedDottdeDimens digits ww
-				define [object width mockInnerWidth dscale] dimens
+				define dimens : bracedDottedDimens digits ww
+				define [object width] dimens
 				set-width width
-				include : EnclosureInner '' [if jobDecomposable gnb null] miniatureFont job dimens
+
 				include : refer-glyph gnb
+				local parts : include : EnclosureInner dimens StandardInners miniatureFont job
+				if jobDecomposable : CvDecompose.set currentGlyph [{gnb}.concat parts]
 
 		foreach job [items-of jobs.decomposableJobs] : CreateGlyphImpl true job
 		foreach job [items-of jobs.nonDecomposable]  : CreateGlyphImpl false job
@@ -485,7 +667,7 @@ glyph-block AutoBuild-Enclosure : begin
 
 	define [createBracedGlyphs digits demands] : BracedT 'braced' digits demands BraceShape
 	define [BraceShape digits ww] : glyph-proc
-		define [object width dscale pscale sw l r] : bracedDottdeDimens digits ww
+		define [object width pscale sw l r] : bracedDottedDimens digits ww
 		local s : TanSlope * SymbolMid / 2
 		local p : 0.1 * [Math.sqrt : Math.min 1 (width / (digits * Width))]
 		set-width width
@@ -504,11 +686,11 @@ glyph-block AutoBuild-Enclosure : begin
 		include : Ungizmo
 		include : Translate 0 (SymbolMid - SymbolMid * pscale)
 		include : Regizmo
-		include : AddEnclosureMark digits : bracedDottdeDimens digits ww
+		include : AddEnclosureMark digits : bracedDottedDimens digits ww
 
 	define [createHexBracedGlyphs digits demands] : BracedT 'hex-braced' digits demands HexBracedShape
 	define [HexBracedShape digits ww] : glyph-proc
-		define [object width dscale pscale sw l r] : bracedDottdeDimens digits ww
+		define [object width pscale sw l r] : bracedDottedDimens digits ww
 		local s : TanSlope * SymbolMid / 2
 		local p : (1 / 6) * [Math.sqrt : Math.min 1 (width / (digits * Width))]
 		set-width width
@@ -546,10 +728,10 @@ glyph-block AutoBuild-Enclosure : begin
 		include : Ungizmo
 		include : Translate 0 (SymbolMid - SymbolMid * pscale)
 		include : Regizmo
-		include : AddEnclosureMark digits : bracedDottdeDimens digits ww
+		include : AddEnclosureMark digits : bracedDottedDimens digits ww
 
-	define [DottedCrowd digits width] : 2 + [AdjustDigitCount digits width]
-	define [DottedScale digits width] : 1 / [Math.pow [AdjustDigitCount digits width] 0.5]
+	define [DottedCrowd digits width] : 2 +  [AdjustDigitCount digits width]
+	define [DottedScale digits width] : 1 / ([AdjustDigitCount digits width] ** (1 / 2))
 	define [createDottedGlyphs digits demands] : begin
 		foreach {suffix ww} [items-of circleWidthClasses] : do
 			define jobs : CollectJobs DECOMPOSABLE NOT-CENTERED ALLOW-PROPORTIONAL ('dotted' + digits) suffix demands
@@ -575,7 +757,7 @@ glyph-block AutoBuild-Enclosure : begin
 
 			define [createDottedGlyphImpl job jobDecomposable] : begin
 				local {gn unicode partsWithDot w} job
-				define [object width dscale pscale sw l r] : bracedDottdeDimens 1 ww
+				define [object width dscale pscale sw l r] : bracedDottedDimens 1 ww
 
 				local totalWidth 0
 				local offsets    { }
@@ -650,15 +832,20 @@ glyph-block AutoBuild-Enclosure : begin
 
 	do "Double-digit circled"
 		local compositions : list
-			list null    {'markBaseSpace'} WideWidth1
+			list null    {'sp1'} WideWidth1
 			list 0x2789  {'one/sansSerif.lnum' 'zero.lnum'} WideWidth1
 			list 0x1F16D {'C' 'C'} WideWidth2
 			list 0x1F12D {'C' 'D'} WideWidth1
-			list 0x1F12E {'W' 'z'} WideWidth1
-		foreach [j : range 10 till 20] : compositions.push : list (0x2460 + j - 1) [digitGlyphNames j] WideWidth1
+			list 0x1F12E {'W' 'smcpZ'} WideWidth1
+		foreach [j : range 10 till 20] : compositions.push : list (0x2460 + j - 1)  [digitGlyphNames j] WideWidth1
 		foreach [j : range 21 till 35] : compositions.push : list (0x3251 + j - 21) [digitGlyphNames j] WideWidth1
 		foreach [j : range 36 till 50] : compositions.push : list (0x32B1 + j - 36) [digitGlyphNames j] WideWidth1
 		createCircledGlyphs 2 compositions
+
+	do "Single-letter inset circled"
+		local compositions : list
+		foreach [j : range 0 26] : compositions.push {(0x1F150 + j) {[glyphStore.queryNameByUnicode (['A'.charCodeAt 0] + j)]} WideWidth1}
+		createInsetCircledGlyphs 1 compositions
 
 	do "Single-digit inset circled"
 		local compositions : list
@@ -666,26 +853,23 @@ glyph-block AutoBuild-Enclosure : begin
 			list 0x1F10C {'zero.lnum'} WideWidth1 # We don't have serifs for digit 0, so make an alias here
 		foreach [j : range 1 till 9] : compositions.push : list (0x2776 + j - 1) [digitGlyphNames j] WideWidth1
 		foreach [j : range 1 till 9] : compositions.push : list (0x278A + j - 1) [digitGlyphNames j digitSansSerifSuffix] WideWidth1
-		foreach [j : range 0 26] : compositions.push {(0x1F150 + j) {[glyphStore.queryNameByUnicode (['A'.charCodeAt 0] + j)]} WideWidth1}
-		createInsetCircledGlyphs 1 compositions
+		createDecomposableInsetCircledGlyphs 1 compositions
 
 	do "Double-digit inset circled"
 		local compositions : list
 			list 0x2793 { "one/sansSerif.lnum" "zero.lnum" } WideWidth1
 		foreach [j : range 10 till 10] : compositions.push : list (0x2776 + j - 1) [digitGlyphNames j] WideWidth1
 		foreach [j : range 11 till 20] : compositions.push : list (0x24EB + j - 11) [digitGlyphNames j] WideWidth1
-		createInsetCircledGlyphs 2 compositions
+		createDecomposableInsetCircledGlyphs 2 compositions
 
-	do "boxed"
+	do "Single-digit boxed"
 		local compositions {}
-		compositions.push { null {'markBaseSpace'} WideWidth1 }
 		foreach [j : range 0 26] : compositions.push {(0x1F130 + j) {[glyphStore.queryNameByUnicode (['A'.charCodeAt 0] + j)]} WideWidth1}
 		compositions.push : list 0x1F1A5 {'d'} WideWidth1
 		createBoxedGlyphs 1 compositions
 
-	do "double-digit boxed"
+	do "Double-digit boxed"
 		createBoxedGlyphs 2 : list
-			list null    {'markBaseSpace'} WideWidth1
 			list 0x1F14A {'H' 'V'} WideWidth1
 			list 0x1F14B {'M' 'V'} WideWidth1
 			list 0x1F14C {'S' 'D'} WideWidth1
@@ -700,11 +884,10 @@ glyph-block AutoBuild-Enclosure : begin
 			list 0x1F19D {'two.lnum' 'K'} WideWidth1
 			list 0x1F19E {'four.lnum' 'K'} WideWidth1
 			list 0x1F19F {'eight.lnum' 'K'} WideWidth1
-			list 0x1F1A6 {'H' 'C' } WideWidth1
+			list 0x1F1A6 {'H' 'C'} WideWidth1
 
-	do "triple-digit boxed"
+	do "Triple-digit boxed"
 		createBoxedGlyphs 3 : list
-			list null    {'markBaseSpace'} WideWidth1
 			list 0x1F14E {'P' 'P' 'V'} WideWidth1
 			list 0x1F195 {'N' 'E' 'W'} WideWidth1
 			list 0x1F198 {'S' 'O' 'S'} WideWidth1
@@ -717,47 +900,132 @@ glyph-block AutoBuild-Enclosure : begin
 			list 0x1F1AB {'U' 'H' 'D'} WideWidth1
 			list 0x1F1AC {'V' 'O' 'D'} WideWidth1
 
-	do "quad-digit boxed"
+	do "Quadruple-digit boxed"
 		createBoxedGlyphs 4 : list
-			list null    {'markBaseSpace'} WideWidth1
 			list 0x1F192 {'C' 'O' 'O' 'L'} WideWidth1
 			list 0x1F193 {'F' 'R' 'E' 'E'} WideWidth1
 			list 0x1F1A2 {'two.lnum' 'two.lnum' 'period' 'two.lnum'} WideWidth1
 			list 0x1F1A4 {'one.lnum' 'two.lnum' 'zero.lnum' 'P'} WideWidth1
 
-	do "triple-digit two-row boxed"
+	do "Triple-digit two-row boxed"
 		createTwoRowBoxedGlyphs 3 : list
-			list null    { 'markBaseSpace' 'markBaseSpace' } WideWidth1
-			list 0x1F19C { 'two.lnum' 'N' 'D' 'S' 'C' 'R' }  WideWidth1
-			list 0x1F1A8 { 'H' 'I' 'hyphen' 'R' 'E' 'S' }  WideWidth1
+			list 0x1F19C { 'two.lnum' 'N' 'D' 'S' 'C' 'R' } WideWidth1
+			list 0x1F1A8 { 'H' 'I' 'hyphen' 'R' 'E' 'S' } WideWidth1
 
-	do "quad-digit two-row boxed"
+	do "Quadruple-digit two-row boxed"
 		createTwoRowBoxedGlyphs 4 : list
-			list null    { 'markBaseSpace' 'markBaseSpace' } WideWidth1
-			list 0x1F1A9 { 'L' 'O' 'S' 'S' 'L' 'E' 'S' 'S' }  WideWidth1
+			list 0x1F1A9 { 'L' 'O' 'S' 'S' 'L' 'E' 'S' 'S' } WideWidth1
 
-	do "triple-digit dashed-boxed"
+	do "Playing cards"
+		# Here we always construct the two-digit cards to ensure that all digit and suit glyphs
+		# are aligned across all cards.
+		local compositions : list
+			list 0x1F0A1 { 'A'             'sp1'       'spadeSuit'        'zwsp' } WideWidth4
+			list 0x1F0AB { 'J/noDescend'   'sp1'       'spadeSuit'        'zwsp' } WideWidth4
+			list 0x1F0AC { 'C'             'sp1'       'spadeSuit'        'zwsp' } WideWidth4
+			list 0x1F0AD { 'Q'             'sp1'       'spadeSuit'        'zwsp' } WideWidth4
+			list 0x1F0AE { 'K'             'sp1'       'spadeSuit'        'zwsp' } WideWidth4
+			list 0x1F0B1 { 'A'             'sp1'       'whiteHeartSuit'   'zwsp' } WideWidth4
+			list 0x1F0BB { 'J/noDescend'   'sp1'       'whiteHeartSuit'   'zwsp' } WideWidth4
+			list 0x1F0BC { 'C'             'sp1'       'whiteHeartSuit'   'zwsp' } WideWidth4
+			list 0x1F0BD { 'Q'             'sp1'       'whiteHeartSuit'   'zwsp' } WideWidth4
+			list 0x1F0BE { 'K'             'sp1'       'whiteHeartSuit'   'zwsp' } WideWidth4
+			list 0x1F0C1 { 'A'             'sp1'       'whiteDiamondSuit' 'zwsp' } WideWidth4
+			list 0x1F0CB { 'J/noDescend'   'sp1'       'whiteDiamondSuit' 'zwsp' } WideWidth4
+			list 0x1F0CC { 'C'             'sp1'       'whiteDiamondSuit' 'zwsp' } WideWidth4
+			list 0x1F0CD { 'Q'             'sp1'       'whiteDiamondSuit' 'zwsp' } WideWidth4
+			list 0x1F0CE { 'K'             'sp1'       'whiteDiamondSuit' 'zwsp' } WideWidth4
+			list 0x1F0D1 { 'A'             'sp1'       'clubSuit'         'zwsp' } WideWidth4
+			list 0x1F0DB { 'J/noDescend'   'sp1'       'clubSuit'         'zwsp' } WideWidth4
+			list 0x1F0DC { 'C'             'sp1'       'clubSuit'         'zwsp' } WideWidth4
+			list 0x1F0DD { 'Q'             'sp1'       'clubSuit'         'zwsp' } WideWidth4
+			list 0x1F0DE { 'K'             'sp1'       'clubSuit'         'zwsp' } WideWidth4
+			list 0x1F0AA { 'one.lnum'      'zero.lnum' 'spadeSuit'        'zwsp' } WideWidth4
+			list 0x1F0BA { 'one.lnum'      'zero.lnum' 'whiteHeartSuit'   'zwsp' } WideWidth4
+			list 0x1F0CA { 'one.lnum'      'zero.lnum' 'whiteDiamondSuit' 'zwsp' } WideWidth4
+			list 0x1F0DA { 'one.lnum'      'zero.lnum' 'clubSuit'         'zwsp' } WideWidth4
+		foreach [j : range 2 till 9] : begin
+			compositions.push : list (0x1F0A0 + j) [[digitGlyphNames j].concat {'sp1' 'spadeSuit'        'zwsp'}] WideWidth4
+			compositions.push : list (0x1F0B0 + j) [[digitGlyphNames j].concat {'sp1' 'whiteHeartSuit'   'zwsp'}] WideWidth4
+			compositions.push : list (0x1F0C0 + j) [[digitGlyphNames j].concat {'sp1' 'whiteDiamondSuit' 'zwsp'}] WideWidth4
+			compositions.push : list (0x1F0D0 + j) [[digitGlyphNames j].concat {'sp1' 'clubSuit'         'zwsp'}] WideWidth4
+		createPlayingCardGlyphs 2 compositions
+
+	do "Single-digit trump cards"
+		createTrumpCardGlyphs 1 : list
+			list 0x1F0BF {'vShadeStar.NWID'} WideWidth4
+			list 0x1F0CF {'blackStar.NWID'} WideWidth4
+			list 0x1F0DF {'whiteStar.NWID'} WideWidth4
+			list 0x1F0E0 {'zero.lnum/forceUnslashed'} WideWidth4
+			list 0x1F0E1 {'I'} WideWidth4
+			list 0x1F0E5 {'V'} WideWidth4
+			list 0x1F0EA {'X'} WideWidth4
+
+	do "Double-digit trump cards"
+		createTrumpCardGlyphs 2 : list
+			list 0x1F0E2 {'I' 'I'} WideWidth4
+			list 0x1F0E4 {'I' 'V'} WideWidth4
+			list 0x1F0E6 {'V' 'I'} WideWidth4
+			list 0x1F0E9 {'I' 'X'} WideWidth4
+			list 0x1F0EB {'X' 'I'} WideWidth4
+			list 0x1F0EF {'X' 'V'} WideWidth4
+			list 0x1F0F4 {'X' 'X'} WideWidth4
+
+	do "Triple-digit trump cards"
+		createTrumpCardGlyphs 3 : list
+			list 0x1F0E3 {'I' 'I' 'I'} WideWidth4
+			list 0x1F0E7 {'V' 'I' 'I'} WideWidth4
+			list 0x1F0EC {'X' 'I' 'I'} WideWidth4
+			list 0x1F0EE {'X' 'I' 'V'} WideWidth4
+			list 0x1F0F0 {'X' 'V' 'I'} WideWidth4
+			list 0x1F0F3 {'X' 'I' 'X'} WideWidth4
+			list 0x1F0F5 {'X' 'X' 'I'} WideWidth4
+
+	do "Quadruple-digit trump cards"
+		createTrumpCardGlyphs 4 : list
+			list 0x1F0E8 {'V' 'I' 'I' 'I'} WideWidth4
+			list 0x1F0ED {'X' 'I' 'I' 'I'} WideWidth4
+			list 0x1F0F1 {'X' 'V' 'I' 'I'} WideWidth4
+
+	do "Quintuple-digit trump cards"
+		createTrumpCardGlyphs 5 : list
+			list 0x1F0F2 {'X' 'V' 'I' 'I' 'I'} WideWidth4
+
+	do "Playing card back"
+		createPlayingCardBackGlyphs 1 : list
+			list 0x1F0A0 {'sp1'} WideWidth4
+
+	do "Single-digit dashed-boxed"
+		local compositions {}
+		foreach [j : range 0 26] : compositions.push {(0x1F1E6 + j) {[glyphStore.queryNameByUnicode (['A'.charCodeAt 0] + j)]} WideWidth1}
+		createDashedBoxedGlyphs 1 compositions
+
+	do "Triple-digit dashed-boxed"
 		createDashedBoxedGlyphs 3 : list
 			list 0xFFFC {'O' 'B' 'J/noDescend'} WideWidth1
 
-	do "inset boxed"
+	do "Single-digit inset boxed"
 		local compositions {}
 		foreach [j : range 0 26] : compositions.push {(0x1F170 + j) {[glyphStore.queryNameByUnicode (['A'.charCodeAt 0] + j)]} WideWidth1}
 		createInsetBoxedGlyphs 1 compositions
 
-	do "inset diamond"
+	do "Single-digit inset diamond"
 		createInsetDiamondGlyphs 1 : list
 			list 0xFFFD { "question" } WideWidth2
 
-	do "double-digit inset boxed"
-		createInsetBoxedGlyphs 2 : list
+	do "Double-digit inset boxed"
+		createDecomposableInsetBoxedGlyphs 2 : list
 			list 0x1F18B {'I' 'C'} WideWidth1
 			list 0x1F18C {'P' 'A'} WideWidth1
 			list 0x1F18D {'S' 'A'} WideWidth1
 			list 0x1F18E {'A' 'B'} WideWidth1
 			list 0x1F18F {'W' 'C'} WideWidth1
 
-	do "inset mosaic"
+	do "Single-digit negative square"
+		createCrossInsetBoxedGlyphs 1 : list
+			list 0x1F18A { "P" } WideWidth1
+
+	do "Single-digit inset mosaic"
 		local compositions {}
 		compositions.push { 0x1FBB1 { [[glyphStore.queryNameByUnicode (0x2714)].replace [regex '.WWID$'] ".NWID"] } WideWidth4 }
 		compositions.push { 0x1FBB4 { [[glyphStore.queryNameByUnicode (0x21B2)].replace [regex '.WWID$'] ".NWID"] } WideWidth4 }
@@ -766,13 +1034,11 @@ glyph-block AutoBuild-Enclosure : begin
 
 	do "Single-digit double circled"
 		local compositions {}
-		compositions.push { null {'markBaseSpace'} WideWidth1 }
 		foreach [j : range 1 till 9] : compositions.push : list (0x24F5 + j - 1) [digitGlyphNames j] WideWidth1
 		createDoubleCircledGlyphs 1 compositions
 
 	do "Double-digit double circled"
 		local compositions {}
-		compositions.push { null {'markBaseSpace'} WideWidth1 }
 		foreach [j : range 10 till 10] : compositions.push : list (0x24F5 + j - 1) [digitGlyphNames j] WideWidth1
 		createDoubleCircledGlyphs 2 compositions
 
@@ -942,6 +1208,7 @@ glyph-block Autobuild-Fractions : begin
 		list 0x215C { 'three.lnum' 'eight.lnum' }
 		list 0x215D { 'five.lnum' 'eight.lnum' }
 		list 0x215E { 'seven.lnum' 'eight.lnum' }
+		list 0x215F { 'one.lnum' 'sp1' }
 		list 0x2189 { 'zero.lnum' 'three.lnum' }
 		list 0x214D { 'A' 'S' }
 
@@ -1072,9 +1339,6 @@ glyph-block AutoBuild-Accented-Equal : begin
 		list 0x1F16A {"M" "C"}
 		list 0x1F16B {"M" "D"}
 		list 0x1F16C {"M" "R"}
-	createAccentedOp 'markDemoBaseSpace' 6.5 0.35 0 (aboveMarkBot - (CAP * 0.35 - XH * 0.35)) : list
-		list 0x2121  {"T" "E" "L"}
-		list 0x213B  {"F" "A" "X"}
 
 glyph-block Autobuild-Ligatures : begin
 	glyph-block-import CommonShapes
@@ -1084,7 +1348,7 @@ glyph-block Autobuild-Ligatures : begin
 
 	define [createLigatures prefix _shrink1 _shrinkN wadj1 wadjN kKern demands] : for-width-kinds WideWidth2
 		local plainLigature : FMosaicWide && para.isQuasiProportional
-		local ww : if FMosaicWide MosaicWidth (MosaicWidth * para.diversityM)
+		local ww : if FMosaicWide MosaicWidth (MosaicWidth * para.diversityMM)
 		local jobs : CollectJobs DECOMPOSABLE NOT-CENTERED ALLOW-PROPORTIONAL prefix MosaicNameSuffix demands
 		local shrink1 : if plainLigature 1 [clamp 0 1 (_shrink1 * [mix Width ww 0.5] / Width)]
 		local shrinkN : if plainLigature 1 [clamp 0 1 (_shrinkN * [mix Width ww 0.5] / Width)]
@@ -1173,10 +1437,17 @@ glyph-block Autobuild-Ligatures : begin
 
 		applyRelations jobs.relApplications
 
+	# Dutch IJ
 	define ijShrink : clamp 0.6 0.75 : StrokeWidthBlend 0.6 0.75
 	createLigatures 'compatLigature1' ijShrink ijShrink 1 1 [if (para.diversityI < 1) 0 0.2] : list
 		list 0x132 { 'I' 'J' }
 		list 0x133 { 'i' 'j' }
+		list 0xEF11 { 'IAcute' 'JAcute' }
+		list 0xEF12 { 'iAcute' 'jAcute' }
+
+	# Link Gr for acute variants
+	NLDAcuteVariant.set [glyphStore.queryByUnicodeEnsured 0x132] [glyphStore.queryNameByUnicodeEnsured 0xEF11]
+	NLDAcuteVariant.set [glyphStore.queryByUnicodeEnsured 0x133] [glyphStore.queryNameByUnicodeEnsured 0xEF12]
 
 	define stdShrink : clamp 0.75 0.9 : StrokeWidthBlend 0.75 0.9
 	createLigatures 'compatLigature2' stdShrink stdShrink 1 1 0 : list
@@ -1192,13 +1463,18 @@ glyph-block Autobuild-Ligatures : begin
 		list 0x1F1 { 'D' 'Z' }
 		list 0x1F2 { 'D' 'z' }
 		list 0x1F3 { 'd' 'z' }
-		list 0x478 { 'cyrl/O' 'cyrl/u' }
-		list 0x479 { 'cyrl/o' 'cyrl/u' }
+		list 0x478 { 'cyrl/Uk/O' 'cyrl/u' }
+		list 0x479 { 'cyrl/uk/o' 'cyrl/u' }
 		list 0x20A7 { 'P' 't' }
 		list 0x20A8 { 'R' 's' }
 		list 0x20AF { 'D' 'grek/rho' }
 		list 0x2116 { 'N' 'numeroRightHalf' }
 		list 0x1F190 { 'D' 'J' } WideWidth1
+
+	# Link Gr for caron variants
+	HBSCaronVariant.set [glyphStore.queryByUnicodeEnsured 0x1F1] [glyphStore.queryNameByUnicodeEnsured 0x1C4]
+	HBSCaronVariant.set [glyphStore.queryByUnicodeEnsured 0x1F2] [glyphStore.queryNameByUnicodeEnsured 0x1C5]
+	HBSCaronVariant.set [glyphStore.queryByUnicodeEnsured 0x1F3] [glyphStore.queryNameByUnicodeEnsured 0x1C6]
 
 	createLigatures 'romanNumerals1' 1 1 1 1 0 : list
 		list 0x2160 { 'I' }
@@ -1342,46 +1618,85 @@ glyph-block Autobuild-Pnonetic-Ligatures : begin
 	define [ToLetter] : glyph-proc
 
 	define stdShrink : clamp 0.625 0.9 : StrokeWidthBlend 0.625 0.9
-	createPhoneticLigatures ToLetter 'phonetic' para.diversityM 2 stdShrink 1 : list
-		list 0x02A3 { 'd/phoneticLeft'  'z'                     } 'b'
-		list 0x02A4 { 'd/phoneticLeft'  'ezh'                   } 'bp'
-		list 0x02A5 { 'd/phoneticLeft'  'zCurlyTail'            } 'b'
-		list 0x02A6 { 't/phoneticLeft2' 's/phoneticRight'       } 'b'
-		list 0x02A7 { 't/teshLeft'      'esh'                   } 'bp'
-		list 0x02A8 { 't/phoneticLeft1' 'cCurlyTail'            } 'b'
-		list 0x02A9 { 'f/phoneticLeft'  'eng/phoneticRight'     } 'bp'
-		list 0x02AA { 'l/phoneticLeft'  's/phoneticRight'       } 'b'
-		list 0x02AB { 'l/phoneticLeft'  'z'                     } 'b'
-		list 0xAB66 { 'd/phoneticLeft'  'zRTailBR'              } 'bp'
-		list 0xAB67 { 't/phoneticLeft1' 'sRTail'                } 'bp'
-		list 0xFB00 { 'f'               'f'                     } null
-		list 0xFB01 { 'f/compLigLeft1'  'dotlessi/compLigRight' } null
-		list 0xFB02 { 'f/compLigLeft2'  'l/compLigRight'        } null
-		list 0xFB05 { 'longs/flatExt'   't/phoneticRight'       } null
-		list 0xFB06 { 's/compLigLeft'   't/phoneticRight'       } null
+	createPhoneticLigatures ToLetter 'phonetic1' 1 2 stdShrink 1 : list
+		list 0xFB00  { 'f'               'f'                            } null
+		list 0xFB01  { 'f/compLigLeft1'  'dotlessi/compLigRight'        } null
+		list 0xFB02  { 'f/compLigLeft2'  'l/compLigRight'               } null
 
-	createPhoneticLigatures ToLetter 'phonetic2' para.diversityM 3 stdShrink 1 : list
-		list 0xFB03 { 'f/compLigLeft1' 'f/compLigLeft1' 'dotlessi/compLigRight' } null
-		list 0xFB04 { 'f/compLigLeft3' 'f/compLigLeft2' 'l/compLigRight'        } null
+	createPhoneticLigatures ToLetter 'phonetic2' para.diversityMM 2 stdShrink 1 : list
+		list 0x02A3  { 'd/phoneticLeft'    'z/phoneticRight'                } 'b'
+		list 0x02A4  { 'd/phoneticLeft'    'ezh/phoneticRight'              } 'bp'
+		list 0x02A5  { 'd/phoneticLeft'    'zCurlyTail/phoneticRight'       } 'b'
+		list 0x02A6  { 't/phoneticLeft2'   's/phoneticRight'                } 'b'
+		list 0x02A7  { 't/teshLeft'        'esh'                            } 'bp'
+		list 0x02A8  { 't/phoneticLeft1'   'cCurlyTail'                     } 'b'
+		list 0x02A9  { 'f/phoneticLeft'    'eng/phoneticRight'              } 'bp'
+		list 0x02AA  { 'l/phoneticLeft'    's/phoneticRight'                } 'b'
+		list 0x02AB  { 'l/phoneticLeft'    'z'                              } 'b'
+		list 0xAB66  { 'd/phoneticLeft'    'zRTail/phoneticRight'           } 'bp'
+		list 0xAB67  { 't/phoneticLeft1'   'sRTail'                         } 'bp'
+		list 0x1DF12 { 'd/phoneticLeft'    'ezhPalatalHook/phoneticRight'   } 'bp'
+		list 0x1DF17 { 't/teshLeft'        'eshPalatalHook'                 } 'bp'
+		list 0x1DF19 { 'd/phoneticLeft'    'ezhRetroflexHook/phoneticRight' } 'bp'
+		list 0x1DF1C { 't/teshLeft'        'eshRetroflexHook/teshRight'     } 'bp'
+		list 0xFB05  { 'longs/compLigLeft' 't/compLigRight'                 } null
+		list 0xFB06  { 's/compLigLeft'     't/compLigRight'                 } null
+
+	createPhoneticLigatures ToLetter 'phonetic3' para.diversityMM 3 stdShrink 1 : list
+		list 0xFB03  { 'f/compLigLeft1' 'f/compLigLeft1' 'dotlessi/compLigRight' } null
+		list 0xFB04  { 'f/compLigLeft3' 'f/compLigLeft2' 'l/compLigRight'        } null
+
+	createPhoneticLigatures ToLetter 'phoneticSmcp' (para.diversityT * para.diversityMM) 3 1 0.5 : list
+		list 0x2121  { 'smcpT' 'smcpE' 'smcpL' } 'e'
+		list 0x213B  { 'smcpF' 'smcpA' 'smcpX' } 'e'
 
 	createPhoneticLigatures ToSuperscript 'phoneticSuperscript' 1 2 stdShrink 1 : list
-		list 0x10787 { 'd/phoneticLeft'  'z'                     } 'b'
-		list 0x1078A { 'd/phoneticLeft'  'ezh'                   } 'bp'
-		list 0x10789 { 'd/phoneticLeft'  'zCurlyTail'            } 'bp'
-		list 0x107AC { 't/phoneticLeft2' 's/phoneticRight'       } 'b'
-		list 0x107AE { 't/teshLeft'      'esh'                   } 'bp'
-		list 0x107AB { 't/phoneticLeft1' 'cCurlyTail'            } 'b'
-		list 0x10790 { 'f/phoneticLeft'  'eng/phoneticRight'     } 'bp'
-		list 0x10799 { 'l/phoneticLeft'  's/phoneticRight'       } 'b'
-		list 0x1079A { 'l/phoneticLeft'  'z'                     } 'b'
-		list 0x10788 { 'd/phoneticLeft'  'zRTailBR'              } 'bp'
-		list 0x107AD { 't/phoneticLeft1' 'sRTail'                } 'p'
+		list 0x10787 { 'd/phoneticLeft'  'z/phoneticRight'          } 'b'
+		list 0x1078A { 'd/phoneticLeft'  'ezh/phoneticRight'        } 'bp'
+		list 0x10789 { 'd/phoneticLeft'  'zCurlyTail/phoneticRight' } 'bp'
+		list 0x107AC { 't/phoneticLeft2' 's/phoneticRight'          } 'b'
+		list 0x107AE { 't/teshLeft'      'esh'                      } 'bp'
+		list 0x107AB { 't/phoneticLeft1' 'cCurlyTail'               } 'b'
+		list 0x10790 { 'f/phoneticLeft'  'eng/phoneticRight'        } 'bp'
+		list 0x10799 { 'l/phoneticLeft'  's/phoneticRight'          } 'b'
+		list 0x1079A { 'l/phoneticLeft'  'z'                        } 'b'
+		list 0x10788 { 'd/phoneticLeft'  'zRTail/phoneticRight'     } 'bp'
+		list 0x107AD { 't/phoneticLeft1' 'sRTail'                   } 'p'
 
 	createPhoneticLigatures ToSubscript 'tenSubscript' 1 2 1 0.5 : list
 		list 0x23E8 { 'one.lnum' 'zero.lnum' } 'capital'
 
 	createPhoneticLigatures ToLetter 'thSlash' 1 2 stdShrink 1 : list
 		list 0x1D7A { 't/phoneticLeft1' 'h' 'wideSlash' } 'b'
+
+glyph-block Autobuild-Rhotic : begin
+	glyph-block-import Mark-Shared-Metrics : markFine
+	glyph-block-import CommonShapes
+	glyph-block-import Common-Derivatives
+	glyph-block-import Recursive-Build : Widen
+	glyph-block-import Letter-Latin-Rhotic : ErTail
+	glyph-block-import Autobuild-Transformed-Shared : extendRelatedGlyphs link-relations
+
+	define [createRhotics groupName yTail _records] : begin
+		local {records relSets targetNameMap} : extendRelatedGlyphs "rhotic_\(groupName)" _records
+		local pendingGlyphs : records.map : [record] => record.1
+		local thinFont : Widen pendingGlyphs 0.85 1
+		foreach {unicode glyphid pri} [items-of records]
+			if [not : query-glyph targetNameMap.(glyphid)]
+				create-glyph (targetNameMap.(glyphid)) unicode : glyph-proc
+					if [not : thinFont.queryByName glyphid] : begin
+						throw : new Error "Cannot find glyph \(glyphid)"
+					include : MarkSet.e
+					include : thinFont.queryByName glyphid
+					include : ErTail (Width * 0.85 - SB - [HSwToV : 1.25 * markFine]) yTail (XH * 0.2)
+
+		link-relations relSets
+		return { targetNameMap records }
+
+	createRhotics 'er' (XH / 2)
+		list { 0x25A 'schwa' }
+	createRhotics 'revLatinEpsilonEr' (XH * [mix 0.65 1 0.5])
+		list { 0x25D 'latn/epsilonRev' }
 
 glyph-block Autobuild-Double-Emotions : begin
 	glyph-block-import CommonShapes

@@ -43,7 +43,7 @@ glyph-block Letter-Greek-Upper-Gamma: begin
 		bottomSerifed   { SLAB-BOTTOM false }
 		serifed         { SLAB-ALL    true  }
 
-	foreach { suffix { slabType doSM } } [Object.entries GammaConfig] : do
+	foreach { suffix { slabType doST } } [Object.entries GammaConfig] : do
 		create-glyph "grek/Gamma.\(suffix)" : glyph-proc
 			include : MarkSet.capital
 			include : GammaShape CAP 0 slabType
@@ -51,23 +51,22 @@ glyph-block Letter-Greek-Upper-Gamma: begin
 		create-glyph "grek/Digamma.\(suffix)" : glyph-proc
 			include : MarkSet.capital
 			include : GammaShape CAP 0 slabType
-
 			local yBar : CAP * DesignParameters.upperEBarPos
-			include : HBar.m GammaBarLeft (RightSB - [xMidBarShrink doSM]) yBar
-			if doSM : include : tagged 'serifRM'
-				VSerif.dr (RightSB - [xMidBarShrink doSM]) (yBar + HalfStroke) [mix Stroke VJut 0.5]
+			include : HBar.m GammaBarLeft (RightSB - [xMidBarShrink doST]) yBar
+			if doST : include : tagged 'serifRM'
+				VSerif.dr (RightSB - [xMidBarShrink doST]) (yBar + HalfStroke) [mix Stroke VJut 0.5]
 
 		create-glyph "cyrl/GheDescender.\(suffix)" : glyph-proc
 			include [refer-glyph "grek/Gamma.\(suffix)"] AS_BASE ALSO_METRICS
 			include : CyrDescender.rSideJut
-				x -- GammaBarLeft + [HSwToV Stroke]
+				x -- (GammaBarLeft + [HSwToV Stroke])
 				y -- 0
 				jut -- MidJutSide
 
 		create-glyph "cyrl/GheDHook.\(suffix)" : glyph-proc
 			include [refer-glyph "grek/Gamma.\(suffix)"] AS_BASE ALSO_METRICS
 			include : PalatalHook.rSideJut
-				x -- GammaBarLeft + [HSwToV Stroke]
+				x -- (GammaBarLeft + [HSwToV Stroke])
 				y -- 0
 				jut -- MidJutSide
 
@@ -78,30 +77,30 @@ glyph-block Letter-Greek-Upper-Gamma: begin
 		create-glyph "cyrl/gheDescender.upright.\(suffix)" : glyph-proc
 			include [refer-glyph "cyrl/ghe.upright.\(suffix)"] AS_BASE ALSO_METRICS
 			include : CyrDescender.rSideJut
-				x -- GammaBarLeft + [HSwToV Stroke]
+				x -- (GammaBarLeft + [HSwToV Stroke])
 				y -- 0
 				jut -- MidJutSide
 
 		create-glyph "cyrl/gheDHook.upright.\(suffix)" : glyph-proc
 			include [refer-glyph "cyrl/ghe.upright.\(suffix)"] AS_BASE ALSO_METRICS
 			include : PalatalHook.rSideJut
-				x -- GammaBarLeft + [HSwToV Stroke]
+				x -- (GammaBarLeft + [HSwToV Stroke])
 				y -- 0
 				jut -- MidJutSide
 
 		create-glyph "cyrl/Ge.\(suffix)" : glyph-proc
 			include : MarkSet.capital
-			include : ExtendAboveBaseAnchors (CAP + LongJut - 0.5 * Stroke)
+			include : ExtendAboveBaseAnchors (CAP + LongVJut - HalfStroke)
 			include : GammaShape CAP 0 slabType
 			eject-contour 'serifRT'
-			include : VBar.r (RightSB - OX) CAP (CAP + LongJut - 0.5 * Stroke)
+			include : VBar.r (RightSB - OX) CAP (CAP + LongVJut - HalfStroke)
 
 		create-glyph "cyrl/ge.\(suffix)" : glyph-proc
 			include : MarkSet.e
-			include : ExtendAboveBaseAnchors (XH + LongJut - 0.5 * Stroke)
+			include : ExtendAboveBaseAnchors (XH + LongVJut - HalfStroke)
 			include : GammaShape XH 0 slabType
 			eject-contour 'serifRT'
-			include : VBar.r (RightSB - OX) XH (XH + LongJut - 0.5 * Stroke)
+			include : VBar.r (RightSB - OX) XH (XH + LongVJut - HalfStroke)
 			if para.isItalic : eject-contour 'serifLB'
 
 		create-glyph "cyrl/GheMidHook.\(suffix)" : glyph-proc
@@ -110,7 +109,7 @@ glyph-block Letter-Greek-Upper-Gamma: begin
 			include : MidHook.general
 				left   -- (GammaBarLeft + [HSwToV Stroke])
 				right  -- RightSB
-				top    -- CAP * HBarPos + Stroke / 4
+				top    -- (CAP * HBarPos + Stroke / 4)
 				ada    -- ArchDepthA
 				adb    -- ArchDepthB
 
@@ -120,9 +119,9 @@ glyph-block Letter-Greek-Upper-Gamma: begin
 			include : MidHook.general
 				left   -- (GammaBarLeft + [HSwToV Stroke])
 				right  -- RightSB
-				top    -- XH * HBarPos + Stroke / 4
-				ada    -- ArchDepthA * [Math.pow HBarPos 0.3]
-				adb    -- ArchDepthB * [Math.pow HBarPos 0.3]
+				top    -- (XH * HBarPos + Stroke / 4)
+				ada    -- (ArchDepthA * (HBarPos ** 0.3))
+				adb    -- (ArchDepthB * (HBarPos ** 0.3))
 			if para.isItalic : eject-contour 'serifLB'
 
 	select-variant 'grek/Gamma' 0x393
@@ -140,18 +139,15 @@ glyph-block Letter-Greek-Upper-Gamma: begin
 	select-variant 'cyrl/ge' 0x491
 	select-variant 'cyrl/gheMidHook' 0x495 (follow -- 'cyrl/ghe.upright')
 
-	create-glyph "grek/digamma.serifless" : glyph-proc
+	select-variant 'grek/Digamma' 0x3DC (follow -- 'grek/Gamma')
+
+	create-glyph 'grek/digamma' 0x3DD : glyph-proc
 		include : MarkSet.p
 		include : GammaShape XH Descender SLAB-NONE
-		include : HBar.m GammaBarLeft (RightSB - [xMidBarShrink SLAB]) [mix 0 XH DesignParameters.upperEBarPos]
-
-	create-glyph "grek/digamma.topRightSerifed" : glyph-proc
-		include [refer-glyph "grek/digamma.serifless"] AS_BASE ALSO_METRICS
-		include : tagged 'serifRM'
-			VSerif.dr (RightSB - [xMidBarShrink SLAB]) ([mix 0 XH DesignParameters.upperEBarPos] + HalfStroke) [mix Stroke VJut 0.5]
-
-	select-variant 'grek/Digamma' 0x3DC
-	select-variant 'grek/digamma' 0x3DD
+		local yBar : mix 0 XH DesignParameters.upperEBarPos
+		include : HBar.m GammaBarLeft (RightSB - [xMidBarShrink SLAB]) yBar
+		if SLAB : include : tagged 'serifRM'
+			VSerif.dr (RightSB - [xMidBarShrink SLAB]) (yBar + HalfStroke) [mix Stroke VJut 0.5]
 
 	define [GhaynOverlayBar top] : LetterBarOverlay.l GammaBarLeft (top * (1 - OverlayPos))
 

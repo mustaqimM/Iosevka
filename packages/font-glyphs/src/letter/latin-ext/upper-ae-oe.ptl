@@ -17,6 +17,7 @@ glyph-block Letter-Latin-Upper-AE-OE : begin
 
 	define SLAB-E-NONE    0
 	define SLAB-E-ALL     2
+	define SLAB-E-CAPPED  3
 
 	define [AESW df top] : Math.min df.mvs : AdviceStroke2 3 3 top df.div
 
@@ -47,7 +48,7 @@ glyph-block Letter-Latin-Upper-AE-OE : begin
 
 
 	define [AEAHalfStraight df top eleft sw] : glyph-proc
-		define StraightSbShrink : mix 1 (DesignParameters.straightVShapeSbShrink * [StrokeWidthBlend 1 0.75]) [if SLAB 0.75 1]
+		define StraightSbShrink : mix 1 (DesignParameters.straightVShapeSbShrink * [StrokeWidthBlend 1 0.75]) : if SLAB 0.75 1
 		define fine : sw * CThin * 1.15
 		define pInktrap : 2 / 3
 		define clearance : 0 - OX
@@ -71,6 +72,20 @@ glyph-block Letter-Latin-Upper-AE-OE : begin
 				corner eleft top
 				corner eleft 0
 
+	define [AEAHalfRoundTop df top eleft sw] : glyph-proc
+		define ada : df.archDepthA ArchDepth sw
+		define adb : df.archDepthB ArchDepth sw
+
+		local yMidLeft : if (top > ada + adb) (top - ada) : mix top 0 (ada / (ada + adb))
+
+		include : HBar.t df.leftSB eleft (XH * 0.75 / CAP * top) sw
+		include : dispiro
+			widths.rhs sw
+			flat df.leftSB 0 [heading Upward]
+			curl df.leftSB yMidLeft
+			arcvh
+			straight.right.end eleft top [heading Rightward]
+
 	define [AEAHalfSerifs df top slabKind] : glyph-proc
 		define sw : Math.min df.mvs : AdviceStroke2 3 3 top df.div
 		define eleft : df.middle - [HSwToV : 0.25 * sw]
@@ -83,33 +98,42 @@ glyph-block Letter-Latin-Upper-AE-OE : begin
 			[Just SLAB-A-TOP] : begin
 				include : HSerif.lt df.middle top [mix MidJutSide LongJut 0.5]
 
-	define [AEAHalf df top straight slabKind] : glyph-proc
+	define [AEAHalf df bodyShape top slabKind] : glyph-proc
 		define sw : AESW df top
 		define eleft : df.middle - [HSwToV : 0.25 * sw]
-		include : if straight
-			AEAHalfStraight df top eleft sw
-			AEAHalfCurly df top eleft sw
+		include : match bodyShape
+			[Just 0] : AEAHalfCurly df top eleft sw
+			[Just 1] : AEAHalfStraight df top eleft sw
+			[Just 2] : AEAHalfRoundTop df top eleft sw
 		include : AEAHalfSerifs df top slabKind
 
 	define [AEEHalf df top slabKind] : glyph-proc
 		define eBarPos DesignParameters.upperEBarPos
 		define sw : AESW df top
 		define eleft : df.middle - [HSwToV : 0.25 * sw]
-		define swVJut : Math.min sw ((df.rightSB - eleft - [HSwToV sw]) * (4 / 5))
+		define swVJut : Math.min sw : (df.rightSB - eleft - [HSwToV sw]) * (4 / 5)
+
+		local xMidRight : df.rightSB - sw / 4
+		local yBar : top * eBarPos
+		local { jutTop jutBot jutMid } : EFVJutLength top eBarPos sw
 
 		# E half
 		include : VBar.l eleft 0 top sw
 		include : HBar.t (eleft - O) df.rightSB top
-		include : HBar.m (eleft - O) (df.rightSB - sw / 4) (top * eBarPos)
+		include : HBar.m (eleft - O) xMidRight yBar
 		include : HBar.b (eleft - O) df.rightSB 0
-		match slabKind
-			[Just SLAB-E-ALL] : begin
-				local { jutTop jutBot } : EFVJutLength top eBarPos sw
-				include : VSerif.dr df.rightSB top jutTop swVJut
-				include : VSerif.ur df.rightSB 0 jutBot swVJut
 
-	do "P/Ya Half"
-		glyph-block-import Letter-Latin-Upper-P : PShape PBarPosY
+		match slabKind
+			([Just SLAB-E-ALL] || [Just SLAB-E-CAPPED]) : begin
+				include : VSerif.dr df.rightSB top jutTop swVJut
+				include : VSerif.ur df.rightSB 0   jutBot swVJut
+		match slabKind
+			[Just SLAB-E-CAPPED] : begin
+				local fine : swVJut * [AdviceStroke 3.5] / Stroke
+				include : VBar.r xMidRight (yBar - jutMid) (yBar + jutMid) fine
+
+	do "Ya Half"
+		glyph-block-import Letter-Latin-Upper-P : PShape
 		glyph-block-import Letter-Latin-Upper-R : RevRShape RConfig RBarPos
 
 		foreach { suffix { legShape fOpen fTailed {slabs revSlabs doLegSlab} } } [Object.entries RConfig] : begin
@@ -117,7 +141,7 @@ glyph-block Letter-Latin-Upper-AE-OE : begin
 
 			if [not fTailed] : begin
 				create-glyph "cyrl/Yae/left.\(suffix)" : glyph-proc
-					local df : include : DivFrame para.diversityM 3
+					local df : include : DivFrame para.diversityMM 3
 					include : df.markSet.capital
 					local sw : AESW df CAP
 					local bp : RBarPos CAP fSlabBot
@@ -130,39 +154,42 @@ glyph-block Letter-Latin-Upper-AE-OE : begin
 					eject-contour 'serifRT'
 
 	define AConfig : object
-		straightSerifless     { true   SLAB-A-NONE }
-		curlySerifless        { false  SLAB-A-NONE }
-		straightTopSerifed    { true   SLAB-A-TOP  }
-		curlyTopSerifed       { false  SLAB-A-TOP  }
-		straightBaseSerifed   { true   SLAB-A-BASE }
-		curlyBaseSerifed      { false  SLAB-A-BASE }
-		straightTriSerifed    { true   SLAB-A-TRI  }
-		curlyTriSerifed       { false  SLAB-A-TRI  }
+		straightSerifless     { 1  SLAB-A-NONE }
+		curlySerifless        { 0  SLAB-A-NONE }
+		roundTopSerifless     { 2  SLAB-A-NONE }
+		straightTopSerifed    { 1  SLAB-A-TOP  }
+		curlyTopSerifed       { 0  SLAB-A-TOP  }
+		straightBaseSerifed   { 1  SLAB-A-BASE }
+		curlyBaseSerifed      { 0  SLAB-A-BASE }
+		roundTopBaseSerifed   { 2  SLAB-A-BASE }
+		straightTriSerifed    { 1  SLAB-A-TRI  }
+		curlyTriSerifed       { 0  SLAB-A-TRI  }
 
 	define EConfig : object
-		serifless     { SLAB-E-NONE }
-		serifed       { SLAB-E-ALL  }
+		serifless     { SLAB-E-NONE   }
+		serifed       { SLAB-E-ALL    }
+		serifedCapped { SLAB-E-CAPPED }
 
-	foreach { suffix { fStraightBar slabKind } } [Object.entries AConfig] : do
+	foreach { suffix { bodyShape slabKind } } [Object.entries AConfig] : do
 		create-glyph "AE/AHalf.\(suffix)" : glyph-proc
-			define df : include : DivFrame para.diversityM 3
+			define df : include : DivFrame para.diversityMM 3
 			include : df.markSet.capital
 			set-base-anchor 'cvDecompose' 0 0
-			include : AEAHalf df CAP fStraightBar slabKind
+			include : AEAHalf df bodyShape CAP slabKind
 		create-glyph "smcpAE/AHalf.\(suffix)" : glyph-proc
-			define df : include : DivFrame para.diversityM 3
+			define df : include : DivFrame para.diversityT 3
 			include : df.markSet.e
 			set-base-anchor 'cvDecompose' 0 0
-			include : AEAHalf df XH fStraightBar slabKind
+			include : AEAHalf df bodyShape XH slabKind
 
 	foreach { suffix { slabKind } } [Object.entries EConfig] : do
 		create-glyph "AE/EHalf.\(suffix)" : glyph-proc
-			define df : DivFrame para.diversityM 3
+			define df : DivFrame para.diversityMM 3
 			set-width 0
 			set-mark-anchor 'cvDecompose' 0 0
 			include : AEEHalf df CAP slabKind
 		create-glyph "smcpAE/EHalf.\(suffix)" : glyph-proc
-			define df : DivFrame para.diversityM 3
+			define df : DivFrame para.diversityT 3
 			set-width 0
 			set-mark-anchor 'cvDecompose' 0 0
 			include : AEEHalf df XH slabKind
@@ -181,39 +208,47 @@ glyph-block Letter-Latin-Upper-AE-OE : begin
 	define [OEShape top df slabKind] : glyph-proc
 		define eBarPos DesignParameters.upperEBarPos
 		define sw : Math.min df.mvs : AdviceStroke2 3 3 top df.div
-		define eleft : df.middle - sw * [if SLAB (1 / 3) (1 / 4)] * HVContrast
+		define eleft : df.middle - [HSwToV : sw * [if SLAB (1 / 3) (1 / 4)]]
 		define swVJut : Math.min sw ((df.rightSB - eleft - [HSwToV sw]) * (4 / 5))
+
+		define ada : df.archDepthA ArchDepth sw
+		define adb : df.archDepthB ArchDepth sw
+
+		local xMidRight : df.rightSB - sw / 4
+		local yBar : top * eBarPos
+		local { jutTop jutBot jutMid } : EFVJutLength top eBarPos sw
 
 		# O half
 		include : dispiro
 			widths.lhs sw 0
 			straight.left.start eleft top [heading Leftward]
 			archv
-			flat  df.leftSB (top - ArchDepthA)
-			curl  df.leftSB (ArchDepthB)
+			flatside.ld df.leftSB 0 top ada adb
 			arcvh
 			straight.right.end eleft 0 [heading Rightward]
 
 		# E half
 		include : VBar.l eleft 0 top sw
 		include : HBar.t (eleft - O) df.rightSB top sw
-		include : HBar.m (eleft - O) (df.rightSB - sw / 4) (top * 0.54) sw
-		include : HBar.b (eleft - O) df.rightSB 0 sw
+		include : HBar.m (eleft - O) xMidRight yBar sw
+		include : HBar.b (eleft - O) df.rightSB 0   sw
 
 		match slabKind
-			[Just SLAB-E-ALL] : begin
-				local { jutTop jutBot } : EFVJutLength top eBarPos sw
+			([Just SLAB-E-ALL] || [Just SLAB-E-CAPPED]) : begin
 				include : VSerif.dr df.rightSB top jutTop swVJut
-				include : VSerif.ur df.rightSB 0 jutBot swVJut
-
+				include : VSerif.ur df.rightSB 0   jutBot swVJut
+		match slabKind
+			[Just SLAB-E-CAPPED] : begin
+				local fine : swVJut * [AdviceStroke 3.5] / Stroke
+				include : VBar.r xMidRight (yBar - jutMid) (yBar + jutMid) fine
 
 	foreach { suffix { slabKind } } [Object.entries EConfig] : do
 		create-glyph "OE.\(suffix)" : glyph-proc
-			define df : include : DivFrame para.diversityM 3
+			define df : include : DivFrame para.diversityMM 3
 			include : df.markSet.capital
 			include : OEShape CAP df slabKind
 		create-glyph "smcpOE.\(suffix)" : glyph-proc
-			define df : include : DivFrame para.diversityM 3
+			define df : include : DivFrame para.diversityT 3
 			include : df.markSet.e
 			include : OEShape XH df slabKind
 

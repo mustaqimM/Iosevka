@@ -1,6 +1,6 @@
 {
   "name": "@iosevka/monorepo",
-  "version": "30.0.0",
+  "version": "32.3.1",
   "workspaces": [
     "packages/*",
     "tools/*"
@@ -9,25 +9,27 @@
     "build": "verda -f verdafile.mjs",
     "bump-ver": "node tools/misc/src/update-package-json-version.mjs && npm install && node tools/misc/src/generate-ttfa-ranges.mjs",
     "clean": "verda -f verdafile.mjs clean",
-    "lint": "eslint . --ext .mjs",
-    "generate-release-sha-file": "node tools/misc/src/generate-release-sha-file.mjs release-archives/*.zip release-archives/SHA-256.txt"
+    "lint": "eslint",
+    "lint:fix": "eslint --fix",
+    "copy-char-name-to-markdown": "node tools/misc/src/copy-char-name-to-markdown.mjs"
   },
   "dependencies": {
     "@iarna/toml": "^2.2.5",
     "deep-equal": "^2.2.3",
-    "otb-ttc-bundle": "^1.7.3",
-    "semver": "^7.6.0",
-    "uuid": "^9.0.1",
-    "verda": "^1.12.1",
-    "which": "^4.0.0"
+    "otb-ttc-bundle": "^1.7.4",
+    "semver": "^7.6.3",
+    "uuid": "^11.0.2",
+    "verda": "^1.12.3",
+    "which": "^5.0.0"
   },
   "devDependencies": {
-    "eslint": "^8.57.0",
+    "eslint": "^9.14.0",
     "eslint-config-prettier": "^9.1.0",
-    "eslint-plugin-import": "^2.29.1",
-    "glob": "^10.3.10",
-    "patel": "^0.40.0",
-    "prettier": "^3.2.5"
+    "eslint-plugin-prettier": "^5.2.1",
+    "eslint-plugin-import": "^2.31.0",
+    "glob": "^11.0.0",
+    "patel": "^0.41.0",
+    "prettier": "^3.3.3"
   },
   "engines": {
     "node": ">=16.0.0"
