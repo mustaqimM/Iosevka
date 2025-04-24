@@ -36,7 +36,8 @@ glyph-block Letter-Armenian-Lower-Sha-Group : begin
 			local y2 : XH / 2
 			include : dispiro
 				widths.center df.mvs
-				straight.down.start (x1 + [HSwToV : 0.5 * df.mvs]) XH [heading Downward]
+				flat (x1 + [HSwToV : 0.5 * df.mvs]) XH [heading Downward]
+				curl (x1 + [HSwToV : 0.5 * df.mvs]) [Math.min (y2 + 0.8 * SmallArchDepthB) (XH - TINY)] [heading Downward]
 				arcvh
 				flat (df.middle + [HSwToV : 0.5 * df.mvs]) y2
 				curl x2 y2 [heading Rightward]
@@ -67,11 +68,10 @@ glyph-block Letter-Armenian-Lower-Sha-Group : begin
 			local rhs : strokeOffset df.rightSB refY dx dy df.mvs HVContrast
 			local joinX : mix df.leftSB rhs.x 0.2
 			local joinY : mix (Descender + df.mvs) rhs.y 0.2
-			local fine : df.mvs * (ShoulderFine / Stroke)
 
 			include : dispiro
 				widths.lhs df.mvs
 				straight.down.start (x1 - [HSwToV df.mvs]) y1 [heading Downward]
-				flat joinX joinY [widths.lhs fine]
+				flat joinX joinY [widths.lhs df.shoulderFine]
 				curl df.leftSB (Descender + df.mvs)
 			include : [ArmHBar.normal df].desc

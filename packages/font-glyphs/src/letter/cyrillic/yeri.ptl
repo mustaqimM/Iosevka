@@ -23,8 +23,8 @@ glyph-block Letter-Cyrillic-Yeri : begin
 			local-parameter : jut    -- Jut
 			local-parameter : pBar   -- YeriBarPos
 			local-parameter : yStart -- top
-			local-parameter : bowl   -- (top * pBar + HalfStroke)
 
+			local bowl : top * pBar + stroke / 2
 			local turnRadius : BowlXDepth bowl 0 left right stroke
 			local ada : ArchDepthAOf ArchDepth (right - left + SB * 2)
 			local adb : ArchDepthBOf ArchDepth (right - left + SB * 2)
@@ -53,7 +53,6 @@ glyph-block Letter-Cyrillic-Yeri : begin
 			local-parameter : jut    -- Jut
 			local-parameter : pBar   -- YeriBarPos
 			local-parameter : yStart -- top
-			local-parameter : bowl   -- (top * pBar + HalfStroke)
 
 			include : CornerCommon.apply null $-flex-arguments
 			if SLAB : begin
@@ -68,7 +67,6 @@ glyph-block Letter-Cyrillic-Yeri : begin
 			local-parameter : jut    -- Jut
 			local-parameter : pBar   -- YeriBarPos
 			local-parameter : yStart -- top
-			local-parameter : bowl   -- (top * pBar + HalfStroke)
 
 			include : CornerCommon.apply null $-flex-arguments
 			if SLAB : begin
@@ -87,8 +85,8 @@ glyph-block Letter-Cyrillic-Yeri : begin
 			local-parameter : jut    -- Jut
 			local-parameter : pBar   -- YeriBarPos
 			local-parameter : yStart -- top
-			local-parameter : bowl   -- (top * pBar + HalfStroke)
 
+			local bowl : top * pBar + stroke / 2
 			local turnRadius : BowlXDepth bowl 0 left right stroke
 			local ada : ArchDepthAOf ArchDepth (right - left + SB * 2)
 			local adb : ArchDepthBOf ArchDepth (right - left + SB * 2)
@@ -117,8 +115,8 @@ glyph-block Letter-Cyrillic-Yeri : begin
 			local-parameter : jut    -- Jut
 			local-parameter : pBar   -- YeriBarPos
 			local-parameter : yStart -- top
-			local-parameter : bowl   -- (top * pBar + HalfStroke)
 
+			local bowl : top * pBar + stroke / 2
 			local turnRadius : BowlXDepth bowl 0 left right stroke
 			local ada : ArchDepthAOf ArchDepth (right - left + SB * 2)
 			local adb : ArchDepthBOf ArchDepth (right - left + SB * 2)
@@ -140,7 +138,7 @@ glyph-block Letter-Cyrillic-Yeri : begin
 
 	define RevYeri : namespace
 		export : define flex-params [Shape top [left SB] [right RightSB] [stroke Stroke] [jut Jut] [pBar YeriBarPos]] : glyph-proc
-			local bowl : top * pBar + HalfStroke
+			local bowl : top * pBar + stroke / 2
 			local turnRadius : bowl * 0.45
 			local turnbottom : mix 0 bowl (ArchDepthB / (ArchDepthA + ArchDepthB))
 			local trShrink : Math.sqrt : (right - left) / (RightSB - SB)
@@ -161,7 +159,7 @@ glyph-block Letter-Cyrillic-Yeri : begin
 					HSerif.mt (right - [HSwToV : 0.5 * stroke]) top jut stroke
 
 		export : define flex-params [RoundShape top [left SB] [right RightSB] [stroke Stroke] [jut Jut] [pBar YeriBarPos] [yStart top]] : glyph-proc
-			local bowl : top * pBar + HalfStroke
+			local bowl : top * pBar + stroke / 2
 			local turnRadius : BowlXDepth bowl 0 left right stroke
 			local ada : ArchDepthAOf ArchDepth (right - left + SB * 2)
 			local adb : ArchDepthBOf ArchDepth (right - left + SB * 2)
@@ -213,10 +211,10 @@ glyph-block Letter-Cyrillic-Yeri : begin
 		include : VerticalHook.l xLeftBarLeftEdge (top - TailY - 0.5 * stroke) (xTopBarLeftEnd - xLeftBarLeftEdge - 0.5 * stroke) (-TailY) stroke
 
 	define [CyrYeryShape LeftHalf df top fBackYer fTail] : glyph-proc
-		local sw : if fBackYer [AdviceStroke 3.25 df.div] df.mvs
+		local sw : if fBackYer [AdviceStroke 3.25 df.adws] df.mvs
 
 		local jut : [Math.min 1 : Math.sqrt : sw / Stroke] * Jut
-		local xm : mix (df.rightSB - [HSwToV sw]) (df.middle + [HSwToV : 0.5 * sw]) : if (fBackYer && df.div > 1) 0.625 0.75
+		local xm : mix (df.rightSB - [HSwToV sw]) (df.middle + [HSwToV : 0.5 * sw]) : if (fBackYer && df.adws > 1) 0.625 0.75
 
 		include : if fBackYer
 			CyrBackYerShape LeftHalf
@@ -280,58 +278,58 @@ glyph-block Letter-Cyrillic-Yeri : begin
 			local df : include : DivFrame 1
 			include : df.markSet.capital
 			include : Uc CAP
-				left -- df.leftSB
+				left  -- df.leftSB
 				right -- df.rightSB
 		create-glyph "cyrl/yeri.\(suffix)" : glyph-proc
 			local df : include : DivFrame 1
 			include : df.markSet.e
 			include : Lc XH
-				left -- df.leftSB
+				left  -- df.leftSB
 				right -- df.rightSB
 		create-glyph "cyrl/YeriBar.\(suffix)" : glyph-proc
 			local df : include : DivFrame 1
 			include : df.markSet.capital
 			include : Uc CAP
-				left -- df.leftSB
+				left  -- df.leftSB
 				right -- df.rightSB
 			include : YeriOverlayBar df CAP
 		create-glyph "cyrl/yeriBar.\(suffix)" : glyph-proc
 			local df : include : DivFrame 1
 			include : df.markSet.e
 			include : Lc XH
-				left -- df.leftSB
+				left  -- df.leftSB
 				right -- df.rightSB
 			include : YeriOverlayBar df XH
 		create-glyph "cyrl/Yer.\(suffix)" : glyph-proc
-			local df : include : DivFrame para.diversityT
+			local df : include : DivFrame para.advanceScaleT
 			include : df.markSet.capital
 			include : CyrBackYerShape Uc CAP
-				left -- df.leftSB
+				left  -- df.leftSB
 				right -- df.rightSB
 		create-glyph "cyrl/yer.\(suffix)" : glyph-proc
-			local df : include : DivFrame para.diversityT
+			local df : include : DivFrame para.advanceScaleT
 			include : df.markSet.e
 			include : CyrBackYerShape Lc XH
-				left -- df.leftSB
+				left  -- df.leftSB
 				right -- df.rightSB
 		create-glyph "cyrl/yerTall.\(suffix)" : glyph-proc
-			local df : include : DivFrame para.diversityT
+			local df : include : DivFrame para.advanceScaleT
 			include : df.markSet.b
 			include : CyrBackYerShape Lc Ascender
-				left -- df.leftSB
+				left  -- df.leftSB
 				right -- df.rightSB
-				pBar -- (YeriBarPos * XH / Ascender)
+				pBar  -- (YeriBarPos * XH / Ascender)
 		create-glyph "cyrl/YerNeutral.\(suffix)" : glyph-proc
-			local df : include : DivFrame para.diversityT
+			local df : include : DivFrame para.advanceScaleT
 			include : df.markSet.capital
 			include : CyrNeutralYerShape Uc CAP
-				left -- df.leftSB
+				left  -- df.leftSB
 				right -- df.rightSB
 		create-glyph "cyrl/yerNeutral.\(suffix)" : glyph-proc
-			local df : include : DivFrame para.diversityT
+			local df : include : DivFrame para.advanceScaleT
 			include : df.markSet.e
 			include : CyrNeutralYerShape Lc XH
-				left -- df.leftSB
+				left  -- df.leftSB
 				right -- df.rightSB
 		create-glyph "ZhuangToneSix.\(suffix)" : glyph-proc
 			include : MarkSet.capital
@@ -342,19 +340,19 @@ glyph-block Letter-Cyrillic-Yeri : begin
 
 	foreach { suffix { Uc Lc fTail } } [Object.entries YeryConfig] : do
 		if [not fTail] : create-glyph "cyrl/Yery.\(suffix)" : glyph-proc
-			local df : include : DivFrame para.diversityM 3
+			local df : include : DivFrame para.advanceScaleM 3
 			include : df.markSet.capital
 			include : CyrYeryShape Uc df CAP false fTail
 		create-glyph "cyrl/yery.\(suffix)" : glyph-proc
-			local df : include : DivFrame para.diversityM 3
+			local df : include : DivFrame para.advanceScaleM 3
 			include : df.markSet.e
 			include : CyrYeryShape Lc df XH false fTail
 		if [not fTail] : create-glyph "cyrl/YeryBack.\(suffix)" : glyph-proc
-			local df : include : DivFrame para.diversityMM 3
+			local df : include : DivFrame para.advanceScaleMM 3
 			include : df.markSet.capital
 			include : CyrYeryShape Uc df CAP true fTail
 		create-glyph "cyrl/yeryBack.\(suffix)" : glyph-proc
-			local df : include : DivFrame para.diversityMM 3
+			local df : include : DivFrame para.advanceScaleMM 3
 			include : df.markSet.e
 			include : CyrYeryShape Lc df XH true fTail
 
@@ -399,20 +397,20 @@ glyph-block Letter-Cyrillic-Yeri : begin
 		include : RevYeri.Shape CAP
 
 	create-glyph 'cyrl/DjeKomi' 0x502 : glyph-proc
-		local df : include : DivFrame para.diversityMM 3
+		local df : include : DivFrame para.advanceScaleMM 3
 		include : df.markSet.capital
 
 		local xm : df.middle + [HSwToV : 0.5 * df.mvs]
 		include : RevYeri.RoundShape CAP df.leftSB xm df.mvs
 		include : UpwardHookShape
-			left -- df.middle - [HSwToV : 0.5 * df.mvs]
-			right -- df.rightSB
+			left   -- (df.middle - [HSwToV : 0.5 * df.mvs])
+			right  -- df.rightSB
 			ybegin -- CAP
-			yend -- (CAP / 2)
-			ada -- (SmallArchDepthA * 0.6 * df.div)
-			adb -- (SmallArchDepthB * 0.6 * df.div)
-			sw -- df.mvs
+			yend   -- (CAP / 2 + HalfStroke)
+			ada    -- (SmallArchDepthA * 0.6 * df.adws)
+			adb    -- (SmallArchDepthB * 0.6 * df.adws)
+			sw     -- df.mvs
 		if SLAB : begin
 			include : HSerif.mt df.middle CAP Jut df.mvs
-			local sf2 : [SerifFrame.fromDf df (CAP / 2) 0].slice 1 2
+			local sf2 : [SerifFrame.fromDf df (CAP / 2 + HalfStroke) 0].slice 1 2
 			include sf2.rt.full

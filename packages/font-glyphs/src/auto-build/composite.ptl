@@ -1348,7 +1348,7 @@ glyph-block Autobuild-Ligatures : begin
 
 	define [createLigatures prefix _shrink1 _shrinkN wadj1 wadjN kKern demands] : for-width-kinds WideWidth2
 		local plainLigature : FMosaicWide && para.isQuasiProportional
-		local ww : if FMosaicWide MosaicWidth (MosaicWidth * para.diversityMM)
+		local ww : if FMosaicWide MosaicWidth (MosaicWidth * para.advanceScaleMM)
 		local jobs : CollectJobs DECOMPOSABLE NOT-CENTERED ALLOW-PROPORTIONAL prefix MosaicNameSuffix demands
 		local shrink1 : if plainLigature 1 [clamp 0 1 (_shrink1 * [mix Width ww 0.5] / Width)]
 		local shrinkN : if plainLigature 1 [clamp 0 1 (_shrinkN * [mix Width ww 0.5] / Width)]
@@ -1439,7 +1439,7 @@ glyph-block Autobuild-Ligatures : begin
 
 	# Dutch IJ
 	define ijShrink : clamp 0.6 0.75 : StrokeWidthBlend 0.6 0.75
-	createLigatures 'compatLigature1' ijShrink ijShrink 1 1 [if (para.diversityI < 1) 0 0.2] : list
+	createLigatures 'compatLigature1' ijShrink ijShrink 1 1 [if (para.advanceScaleI < 1) 0 0.2] : list
 		list 0x132 { 'I' 'J' }
 		list 0x133 { 'i' 'j' }
 		list 0xEF11 { 'IAcute' 'JAcute' }
@@ -1463,7 +1463,7 @@ glyph-block Autobuild-Ligatures : begin
 		list 0x1F1 { 'D' 'Z' }
 		list 0x1F2 { 'D' 'z' }
 		list 0x1F3 { 'd' 'z' }
-		list 0x478 { 'cyrl/Uk/O' 'cyrl/u' }
+		list 0x478 { 'cyrl/O' 'cyrl/u' }
 		list 0x479 { 'cyrl/uk/o' 'cyrl/u' }
 		list 0x20A7 { 'P' 't' }
 		list 0x20A8 { 'R' 's' }
@@ -1529,14 +1529,14 @@ glyph-block Autobuild-Pnonetic-Ligatures : begin
 	glyph-block-import Autobuild-Enclosure-Shared : CollectJobs CreateDerivedFontFromJobs EnsureComponentGlyphT applyRelations
 	glyph-block-import Autobuild-Transformed-Shared : ToSuperscript ToSubscript
 
-	define [createPhoneticLigatures tfm prefix div mockNParts _shrink kKern demands] : begin
-		local ww0 : Width * div
+	define [createPhoneticLigatures tfm prefix adws mockNParts _shrink kKern demands] : begin
+		local ww0 : Width * adws
 		local wwM : ww0 / [fallback tfm.crowdAdjScale 1]
 		local jobs : CollectJobs DECOMPOSABLE NOT-CENTERED ALLOW-PROPORTIONAL prefix "" demands
 		local shrink : clamp 0 1 _shrink
 		local kern 0
 		foreach [cycle : range 0 8] : begin
-			set kern : kKern * (2 * SB * shrink + (0.5 * Stroke * [HSwToV shrink] - OX * 2))
+			set kern : kKern * (2 * SB * shrink + (HalfStroke * [HSwToV shrink] - OX * 2))
 			local tmpShrink : (wwM + kern * (mockNParts - 1)) / (mockNParts * Width)
 			set shrink : Math.max _shrink : clamp 0 1 tmpShrink
 
@@ -1548,10 +1548,10 @@ glyph-block Autobuild-Pnonetic-Ligatures : begin
 			if [query-glyph gni] : return gni
 			create-glyph gni : glyph-proc
 				set-width aw
-				if mak : include : [DivFrame div].markSet.(mak)
+				if mak : include : [DivFrame adws].markSet.(mak)
 				set-base-anchor 'enclosureInner' markPlacement 0
 				set-base-anchor 'slash' (aw / 2) (Ascender / 2)
-				include : tfm div
+				include : tfm adws
 			return gni
 
 		define [LigaturePartImpl thinFont compress markDist maskPos] : lambda [gidPart] : begin
@@ -1566,7 +1566,7 @@ glyph-block Autobuild-Pnonetic-Ligatures : begin
 				include : Scale compress 1
 				include : Regizmo
 				set-mark-anchor 'enclosureInner' 0 0 markDist 0
-				include : tfm div
+				include : tfm adws
 			return gni
 
 		define [LigatureImpl job decomposable] : if [not : query-glyph gn] : begin
@@ -1618,12 +1618,12 @@ glyph-block Autobuild-Pnonetic-Ligatures : begin
 	define [ToLetter] : glyph-proc
 
 	define stdShrink : clamp 0.625 0.9 : StrokeWidthBlend 0.625 0.9
-	createPhoneticLigatures ToLetter 'phonetic1' 1 2 stdShrink 1 : list
-		list 0xFB00  { 'f'               'f'                            } null
-		list 0xFB01  { 'f/compLigLeft1'  'dotlessi/compLigRight'        } null
-		list 0xFB02  { 'f/compLigLeft2'  'l/compLigRight'               } null
+	createPhoneticLigatures ToLetter 'phonetic1' [Math.max 1 : para.advanceScaleF * para.advanceScaleMM] 2 stdShrink 1 : list
+		list 0xFB00  { 'f'               'f'                     } null
+		list 0xFB01  { 'f/compLigLeft1'  'dotlessi/compLigRight' } null
+		list 0xFB02  { 'f/compLigLeft3'  'l/compLigRight'        } null
 
-	createPhoneticLigatures ToLetter 'phonetic2' para.diversityMM 2 stdShrink 1 : list
+	createPhoneticLigatures ToLetter 'phonetic2' para.advanceScaleMM 2 stdShrink 1 : list
 		list 0x02A3  { 'd/phoneticLeft'    'z/phoneticRight'                } 'b'
 		list 0x02A4  { 'd/phoneticLeft'    'ezh/phoneticRight'              } 'bp'
 		list 0x02A5  { 'd/phoneticLeft'    'zCurlyTail/phoneticRight'       } 'b'
@@ -1642,11 +1642,11 @@ glyph-block Autobuild-Pnonetic-Ligatures : begin
 		list 0xFB05  { 'longs/compLigLeft' 't/compLigRight'                 } null
 		list 0xFB06  { 's/compLigLeft'     't/compLigRight'                 } null
 
-	createPhoneticLigatures ToLetter 'phonetic3' para.diversityMM 3 stdShrink 1 : list
-		list 0xFB03  { 'f/compLigLeft1' 'f/compLigLeft1' 'dotlessi/compLigRight' } null
-		list 0xFB04  { 'f/compLigLeft3' 'f/compLigLeft2' 'l/compLigRight'        } null
+	createPhoneticLigatures ToLetter 'phonetic3' [Math.max para.advanceScaleMM : para.advanceScaleF * [mix 1 para.advanceScaleMM 2]] 3 stdShrink 1 : list
+		list 0xFB03  { 'f/compLigLeft2' 'f/compLigLeft1' 'dotlessi/compLigRight' } null
+		list 0xFB04  { 'f/compLigLeft4' 'f/compLigLeft3' 'l/compLigRight'        } null
 
-	createPhoneticLigatures ToLetter 'phoneticSmcp' (para.diversityT * para.diversityMM) 3 1 0.5 : list
+	createPhoneticLigatures ToLetter 'phoneticSmcp' (para.advanceScaleM * para.advanceScaleMM) 3 1 0.5 : list
 		list 0x2121  { 'smcpT' 'smcpE' 'smcpL' } 'e'
 		list 0x213B  { 'smcpF' 'smcpA' 'smcpX' } 'e'
 
@@ -1666,37 +1666,8 @@ glyph-block Autobuild-Pnonetic-Ligatures : begin
 	createPhoneticLigatures ToSubscript 'tenSubscript' 1 2 1 0.5 : list
 		list 0x23E8 { 'one.lnum' 'zero.lnum' } 'capital'
 
-	createPhoneticLigatures ToLetter 'thSlash' 1 2 stdShrink 1 : list
+	createPhoneticLigatures ToLetter 'thSlash' para.advanceScaleMM 2 stdShrink 1 : list
 		list 0x1D7A { 't/phoneticLeft1' 'h' 'wideSlash' } 'b'
-
-glyph-block Autobuild-Rhotic : begin
-	glyph-block-import Mark-Shared-Metrics : markFine
-	glyph-block-import CommonShapes
-	glyph-block-import Common-Derivatives
-	glyph-block-import Recursive-Build : Widen
-	glyph-block-import Letter-Latin-Rhotic : ErTail
-	glyph-block-import Autobuild-Transformed-Shared : extendRelatedGlyphs link-relations
-
-	define [createRhotics groupName yTail _records] : begin
-		local {records relSets targetNameMap} : extendRelatedGlyphs "rhotic_\(groupName)" _records
-		local pendingGlyphs : records.map : [record] => record.1
-		local thinFont : Widen pendingGlyphs 0.85 1
-		foreach {unicode glyphid pri} [items-of records]
-			if [not : query-glyph targetNameMap.(glyphid)]
-				create-glyph (targetNameMap.(glyphid)) unicode : glyph-proc
-					if [not : thinFont.queryByName glyphid] : begin
-						throw : new Error "Cannot find glyph \(glyphid)"
-					include : MarkSet.e
-					include : thinFont.queryByName glyphid
-					include : ErTail (Width * 0.85 - SB - [HSwToV : 1.25 * markFine]) yTail (XH * 0.2)
-
-		link-relations relSets
-		return { targetNameMap records }
-
-	createRhotics 'er' (XH / 2)
-		list { 0x25A 'schwa' }
-	createRhotics 'revLatinEpsilonEr' (XH * [mix 0.65 1 0.5])
-		list { 0x25D 'latn/epsilonRev' }
 
 glyph-block Autobuild-Double-Emotions : begin
 	glyph-block-import CommonShapes
@@ -1704,11 +1675,11 @@ glyph-block Autobuild-Double-Emotions : begin
 	glyph-block-import Recursive-Build : Thinner
 	glyph-block-import Autobuild-Enclosure-Shared : CollectJobs CreateDerivedFontFromJobs EnsureComponentGlyphT applyRelations
 
-	define [createDoubleEmotions prefix div _shrink1 _shrink2 wadj1 wadj2 demands] : for-width-kinds WideWidth2
-		define CWidth : if FMosaicWide MosaicWidth (Width * div)
+	define [createDoubleEmotions prefix adws _shrink1 _shrink2 wadj1 wadj2 demands] : for-width-kinds WideWidth2
+		define CWidth : if FMosaicWide MosaicWidth (Width * adws)
 		define shrink1 : if FMosaicWide 1 _shrink1
 		define shrink2 : if FMosaicWide 1 _shrink2
-		define kern : SB * shrink1 + SB * shrink2 + 0.5 * Stroke * [mix shrink1 shrink2 0.5] - OX * 2
+		define kern : SB * shrink1 + SB * shrink2 + HalfStroke * [mix shrink1 shrink2 0.5] - OX * 2
 
 		define jobs : CollectJobs NON-DECOMPOSABLE NOT-CENTERED ALLOW-PROPORTIONAL prefix MosaicNameSuffix demands
 		define df1 : CreateDerivedFontFromJobs jobs {} : lambda [gs] : Thinner gs shrink1 true
@@ -1728,7 +1699,7 @@ glyph-block Autobuild-Double-Emotions : begin
 				include : Translate (dfg1.advanceWidth * wadj1 - kern) 0
 				include : union dfg1 [with-transform [Translate (dfg1.advanceWidth) 0] dfm1]
 				include : Ungizmo
-				include : Translate (-refW / 2) 0
+				include : Translate ((-refW) / 2) 0
 				include : Scale [clamp 0 1 ((CWidth - SB * 1.25) / (CWidth - SB * 2) * CWidth / refW)] 1
 				include : Translate (CWidth / 2) 0
 				include : Regizmo
@@ -1736,7 +1707,7 @@ glyph-block Autobuild-Double-Emotions : begin
 		applyRelations jobs.relApplications
 
 	define stdShrink : clamp 0.625 0.9 : StrokeWidthBlend 0.625 0.9
-	createDoubleEmotions 'doubleemotion' para.diversityM stdShrink stdShrink 1 1 : list
+	createDoubleEmotions 'doubleemotion' para.advanceScaleM stdShrink stdShrink 1 1 : list
 		list 0x203c { 'exclam' 'zwsp' 'exclam' 'zwsp' }
 		list 0x2047 { 'question/hookPart' 'question/dotPart' 'question/hookPart' 'question/dotPart' }
 		list 0x2048 { 'question/hookPart' 'question/dotPart' 'exclam' 'zwsp' }
@@ -1754,7 +1725,7 @@ glyph-block Autobuild-Grouped-Digits : begin
 				HBar.b 0 Width (Descender * 0.75) [AdviceStroke 4]
 				glyph-proc
 					include : refer-glyph "denseShade.WWID"
-					include : Translate (-Width / 2) 0
+					include : Translate ((-Width) / 2) 0
 			include : Translate (-Width) 0
 
 		foreach [gid : items-of numberGlyphIDs] : foreach [nd : items-of {0 1 2 3 4 5 6}]

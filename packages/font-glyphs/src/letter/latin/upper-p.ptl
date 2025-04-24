@@ -116,7 +116,9 @@ glyph-block Letter-Latin-Upper-P : begin
 	set PShape.SlabMotion : function [top df sw mul] : glyph-proc
 		include : tagged 'serifLT' : HSerif.lt (df.leftSB * mul) top SideJut sw
 	set PShape.SlabFullSymmetric : function [top df sw mul] : glyph-proc
-		include : tagged 'serifLT' : HSerif.mt (df.leftSB * mul + [HSwToV : 0.5 * sw]) top Jut sw
+		include : tagged 'serifLT' : union
+			HSerif.lt (df.leftSB * mul) top SideJut sw
+			HSerif.rt (df.leftSB * mul + [HSwToV : 0.5 * sw]) top MidJutSide sw
 		include : tagged 'serifLB' : HSerif.mb (df.leftSB * mul + [HSwToV : 0.5 * sw]) 0 Jut sw
 	set PShape.SlabSymmetric : function [top df sw mul] : glyph-proc
 		include : PShape.SlabMotion top df sw mul
@@ -185,7 +187,7 @@ glyph-block Letter-Latin-Upper-P : begin
 				PShape XH (slab -- slabs)
 				if fGap [PShape.OpenGap (top -- XH) (bot -- [if fSlabBot Stroke 0])] [glyph-proc]
 
-		create-glyph "PStrokeBot.\(suffix)" : glyph-proc
+		create-glyph "PStrokeBottom.\(suffix)" : glyph-proc
 			include [refer-glyph "P.\(suffix)"] AS_BASE ALSO_METRICS
 			include : LetterBarOverlay.l.in
 				x   -- (SB * PShape.defaultMul)
@@ -245,7 +247,7 @@ glyph-block Letter-Latin-Upper-P : begin
 		space -- { 0 (RightSB - [HSwToV Stroke]) }
 	derive-composites 'PStroke' 0x2C63 'P' 'PStroke/overlay'
 
-	select-variant 'PStrokeBot' 0xA750 (follow -- 'P')
+	select-variant 'PStrokeBottom' 0xA750 (follow -- 'P')
 
 	define [BBPShape] : with-params [[mul PShape.defaultMul] [overshoot PShape.defaultOvershoot]] : glyph-proc
 		define sb : SB * mul

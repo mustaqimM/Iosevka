@@ -10,8 +10,7 @@ glyph-block Letter-Latin-C : begin
 	glyph-block-import Common-Derivatives
 	glyph-block-import Mark-Adjustment : ExtendAboveBaseAnchors ExtendBelowBaseAnchors LeaningAnchor
 	glyph-block-import Letter-Shared : CreateAccentedComposition CreateDependentComposite CreateTurnedLetter
-	glyph-block-import Letter-Shared-Shapes : SerifFrame CurlyTail DToothlessRise
-	glyph-block-import Letter-Shared-Shapes : SerifedArcStart SerifedArcEnd
+	glyph-block-import Letter-Shared-Shapes : SerifFrame CurlyTail SerifedArcStart SerifedArcEnd
 	glyph-block-import Letter-Shared-Shapes : InwardSlabArcStart InwardSlabArcEnd
 	glyph-block-import Letter-Shared-Shapes : ArcStartSerif ArcEndSerif
 	glyph-block-import Letter-Shared-Shapes : LetterBarOverlay PalatalHook RetroflexHook TopHook
@@ -96,17 +95,18 @@ glyph-block Letter-Latin-C : begin
 		[Just SLAB-INWARD]    : ArcEndSerif.InwardL df.leftSB bot [fallback sw Stroke] [fallback hook Hook]
 		__ : glyph-proc
 
-	define [CCurlyTailShape slabType] : glyph-proc
+	define [CCurlyTailShape df slabType top bot] : glyph-proc
 		local sw : AdviceStroke2 2 3 XH
 		local fine : AdviceStroke2 3 3 XH
+		local loopTop : bot + 0.45 * XH
 
 		include : dispiro
 			match slabType
-				[Just SLAB-CLASSICAL] : SerifedArcStart.RtlLhs RightSB XH sw Hook
-				[Just SLAB-INWARD] : InwardSlabArcStart.RtlLhs RightSB XH sw Hook
-				__ : list [g4 RightSB (XH - Hook) [widths.lhs sw]] [hookstart XH (sw -- sw)]
-			flatside.ld SB 0 XH SmallArchDepthA SmallArchDepthB
-			CurlyTail.n fine 0 RightSB 0 0 (yLoopTop -- (XH * 0.45))
+				[Just SLAB-CLASSICAL] : SerifedArcStart.RtlLhs df.rightSB top sw Hook
+				[Just SLAB-INWARD] : InwardSlabArcStart.RtlLhs df.rightSB top sw Hook
+				__ : list [g4 df.rightSB (top - Hook) [widths.lhs sw]] [hookstart top (sw -- sw)]
+			flatside.ld df.leftSB bot top SmallArchDepthA SmallArchDepthB
+			CurlyTail.n fine bot df.rightSB 0 bot (yLoopTop -- loopTop)
 
 	glyph-block-export CLetterForm
 	define [CLetterForm] : with-params [df sty styBot top bot [ada ArchDepthA] [adb ArchDepthB] [hook Hook] [sw Stroke] [ob nothing]] : namespace
@@ -211,13 +211,13 @@ glyph-block Letter-Latin-C : begin
 				include : Translate 0 (SB / 2)
 
 		create-glyph "cyrl/esWide.\(suffix)" : glyph-proc
-			local df : include : DivFrame para.diversityT 3
+			local df : include : DivFrame para.advanceScaleT 3
 			include : df.markSet.e
-			local desc : (-LongVJut) + HalfStroke
+			local desc : (-LongVJut) + QuarterStroke
 			include : ExtendBelowBaseAnchors desc
 			local lf : CLetterForm df sty styBot XH desc
-				ada -- [df.archDepthA SmallArchDepth Stroke]
-				adb -- [df.archDepthB SmallArchDepth Stroke]
+				ada -- [df.archDepthAOf SmallArchDepth Stroke]
+				adb -- [df.archDepthBOf SmallArchDepth Stroke]
 			include : lf.full
 
 		create-glyph "cHookTop.\(suffix)" : glyph-proc
@@ -231,7 +231,7 @@ glyph-block Letter-Latin-C : begin
 
 		create-glyph "cCurlyTail.\(suffix)" : glyph-proc
 			include : MarkSet.e
-			include : CCurlyTailShape sty
+			include : CCurlyTailShape [DivFrame 1] sty XH 0
 			include : AutoStartSerifR [DivFrame 1] sty XH
 
 		create-glyph "stretchedC.\(suffix)" : glyph-proc
@@ -240,6 +240,11 @@ glyph-block Letter-Latin-C : begin
 				ada -- SmallArchDepthA
 				adb -- SmallArchDepthB
 			include : lf.full
+
+		create-glyph "stretchedCCurlyTail.\(suffix)" : glyph-proc
+			include : MarkSet.p
+			include : CCurlyTailShape [DivFrame 1] sty XH Descender
+			include : AutoStartSerifR [DivFrame 1] sty XH
 
 		define [KoppaShapeT styTop styBot top base] : union
 			VBar.r (Middle + [HSwToV Stroke]) Descender HalfStroke
@@ -286,10 +291,9 @@ glyph-block Letter-Latin-C : begin
 	select-variant 'C' 'C'
 	link-reduced-variant 'C/sansSerif' 'C' MathSansSerif
 	select-variant 'revC' 0x2183 (follow -- 'C')
+
 	alias 'cyrl/Es' 0x421 'C'
 	alias 'grek/lunateSigma' 0x3F9 'C'
-
-	select-variant 'CTopSerifOnly' (shapeFrom -- 'C')
 
 	select-variant 'CHookTop' 0x187
 	select-variant 'smcpC' 0x1D04 (follow -- 'C')
@@ -298,20 +302,22 @@ glyph-block Letter-Latin-C : begin
 
 	select-variant 'c' 'c'
 	link-reduced-variant 'c/sansSerif' 'c' MathSansSerif
-	link-reduced-variant 'c/turnDescBase' 'c' (follow -- 'cHookTop')
+	link-reduced-variant 'c/ascBase' 'c' (follow -- 'cHookTop')
 	select-variant 'revc' 0x2184 (follow -- 'c')
+
 	select-variant 'c/centKernelStd' (follow -- 'c')
 	select-variant 'c/centKernelCap' (follow -- 'c')
+
 	alias 'cyrl/es' 0x441 'c'
 	alias 'grek/lunateSmallSigma' 0x3F2 'c.serifless'
+
 	select-variant 'turncSideways' 0x1D12 (follow -- 'c')
 	select-variant 'cyrl/esWide' 0x1C83 (follow -- 'c')
-
-	select-variant 'cTopSerifOnly' (shapeFrom -- 'c')
 
 	select-variant 'cCurlyTail' 0x255
 	select-variant 'cHookTop' 0x188
 	select-variant 'stretchedC' 0x297 (follow -- 'c')
+	select-variant 'stretchedCCurlyTail' 0x1DF0F (follow -- 'cCurlyTail')
 
 	select-variant 'cyrl/Koppa' 0x480 (follow -- 'CTopSerifOnly')
 	select-variant 'cyrl/koppa' 0x481 (follow -- 'cTopSerifOnly')
@@ -323,10 +329,11 @@ glyph-block Letter-Latin-C : begin
 	CreateTurnedLetter 'turnC' 0x186 'C' HalfAdvance (CAP / 2)
 	CreateTurnedLetter 'turnc' 0x254 'c' HalfAdvance (XH / 2)
 	CreateTurnedLetter 'turnSmcpC' 0x1D10 'smcpC' HalfAdvance (XH / 2)
+
 	alias 'grek/revLunateSigma' 0x3FD 'revC'
 	alias 'grek/revLunateSmallSigma' 0x37B 'revc.serifless'
 
-	CreateTurnedLetter 'turnc/descBase' null 'c/turnDescBase' HalfAdvance (XH / 2)
+	CreateTurnedLetter 'turnc/descBase' null 'c/ascBase' HalfAdvance (XH / 2)
 	derive-composites 'turncRetroflexHook' 0x1D97 'turnc/descBase'
 		RetroflexHook.l SB 0 (yAttach -- DToothlessRise)
 
@@ -336,7 +343,7 @@ glyph-block Letter-Latin-C : begin
 	derive-composites 'cPalatalHook' 0xA794 'c/descBase'
 		PalatalHook.r RightSB 0 (yAttach -- DToothlessRise)
 
-	derive-composites 'cRetroflexHook' 0x1DF1D 'c/descBase'
+	derive-composites 'cRTail' 0x1DF1D 'c/descBase'
 		RetroflexHook.r RightSB 0 (yAttach -- DToothlessRise)
 
 	derive-composites 'grek/dotLunateSigma' 0x3FE 'grek/lunateSigma' 'innerDot'
@@ -356,7 +363,7 @@ glyph-block Letter-Latin-C : begin
 
 	derive-glyphs 'cyrl/The' 0x4AA "cyrl/Es" : function [src gr] : glyph-proc
 		include [refer-glyph src] AS_BASE ALSO_METRICS
-		local desc : (-LongVJut) + HalfStroke
+		local desc : (-LongVJut) + QuarterStroke
 		include : ExtendBelowBaseAnchors desc
 		include : difference
 			VBar.m [arch.adjust-x.bot Middle] desc (Stroke + O) VJutStroke
@@ -373,7 +380,7 @@ glyph-block Letter-Latin-C : begin
 
 	derive-glyphs 'cyrl/the' 0x4AB "cyrl/es" : function [src gr] : glyph-proc
 		include [refer-glyph src] AS_BASE ALSO_METRICS
-		local desc : (-LongVJut) + HalfStroke
+		local desc : (-LongVJut) + QuarterStroke
 		include : ExtendBelowBaseAnchors desc
 		include : difference
 			VBar.m [arch.adjust-x.bot Middle] desc (Stroke + O) VJutStroke
