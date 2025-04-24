@@ -1,11 +1,11 @@
-[buildPlans.Iosevka]
+[buildPlans.iosevka]
 family = "Iosevka"
 spacing = "normal"
 serifs = "sans"
 noCvSs = false
 exportGlyphNames = false
 
-[buildPlans.Iosevka.variants.design]
+[buildPlans.iosevka.variants.design]
 two = "straight-neck-serifless"
 three = "flat-top-serifless"
 four = "open-serifless"
@@ -37,23 +37,23 @@ question = "smooth"
 lig-ltgteq = "slanted"
 lig-neq = "slightly-slanted"
 
-[buildPlans.Iosevka.weights.Regular]
+[buildPlans.iosevka.weights.Regular]
 shape = 400
 menu = 400
 css = 400
 
-[buildPlans.Iosevka.weights.Bold]
+[buildPlans.iosevka.weights.Bold]
 shape = 700
 menu = 700
 css = 700
 
-[buildPlans.Iosevka.slopes.Upright]
+[buildPlans.iosevka.slopes.Upright]
 angle = 0
 shape = "upright"
 menu = "upright"
 css = "normal"
 
-[buildPlans.Iosevka.slopes.Italic]
+[buildPlans.iosevka.slopes.Italic]
 angle = 9.4
 shape = "italic"
 menu = "italic"
