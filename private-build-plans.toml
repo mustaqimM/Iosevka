@@ -6,11 +6,8 @@ noCvSs = false
 exportGlyphNames = false
 
 [buildPlans.iosevka.variants.design]
-two = "straight-neck-serifless"
-three = "flat-top-serifless"
 four = "open-serifless"
 five = "upright-flat-serifless"
-nine = "straight-bar"
 zero = "dotted"
 capital-g = "toothless-corner-serifless-hooked"
 capital-k = "symmetric-touching-serifless"
