@@ -2,6 +2,7 @@
 family = "Iosevka"
 spacing = "normal"
 serifs = "sans"
+
 noCvSs = false
 exportGlyphNames = false
 
