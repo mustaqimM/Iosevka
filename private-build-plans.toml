@@ -2,7 +2,6 @@
 family = "Iosevka"
 spacing = "normal"
 serifs = "sans"
-
 noCvSs = false
 exportGlyphNames = false
 
@@ -27,9 +26,9 @@ y = "straight-turn-serifless"
 asterisk = "penta-low"
 paren = "flat-arc"
 brace = "straight"
-ampersand = "closed"
-at = "compact"
-dollar = "through"
+ampersand = "upper-open"
+at = "fourfold-tall"
+dollar = "open"
 percent = "rings-segmented-slash"
 question = "smooth"
 lig-ltgteq = "slanted"
